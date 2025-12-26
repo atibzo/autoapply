@@ -1,0 +1,17 @@
+# LinkedIn Auto Job Applier - Python Dependencies
+# Install with: pip install -r requirements.txt
+
+# Web automation
+selenium>=4.0.0
+undetected-chromedriver>=3.5.0
+
+# Desktop automation (for alerts, screen awake, etc.)
+pyautogui>=0.9.50
+
+# Web server
+flask>=3.0.0
+flask-cors>=4.0.0
+
+# AI integrations (optional)
+openai>=1.0.0
+google-generativeai>=0.3.0
