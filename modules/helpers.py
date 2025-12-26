@@ -12,7 +12,6 @@ GitHub:     https://github.com/GodsScion/Auto_job_applier_linkedIn
 version:    24.12.29.12.30
 '''
 
-
 # Imports
 
 import os
@@ -26,8 +25,10 @@ from datetime import datetime, timedelta
 from pyautogui import alert
 from pprint import pprint
 
-from config.settings import logs_folder_path
-
+from modules.config_loader import get_config
+config = get_config()
+settings = config.get('settings', {})
+logs_folder_path = settings.get('logs_folder_path', "logs/")
 
 
 #### Common functions ####
@@ -129,7 +130,7 @@ def print_lg(*msgs: str | dict, end: str = "\n", pretty: bool = False, flush: bo
                 file.write(str(message) + end)
     except Exception as e:
         trail = f'Skipped saving this message: "{message}" to log.txt!' if from_critical else "We'll try one more time to log..."
-        alert(f"log.txt in {logs_folder_path} is open or is occupied by another program! Please close it! {trail}", "Failed Logging")
+        # alert(f"log.txt in {logs_folder_path} is open or is occupied by another program! Please close it! {trail}", "Failed Logging")
         if not from_critical:
             critical_error_log("Log.txt is open or is occupied by another program!", e)
 #>

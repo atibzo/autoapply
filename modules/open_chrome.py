@@ -13,17 +13,31 @@ version:    24.12.29.12.30
 '''
 
 from modules.helpers import make_directories
-from config.settings import run_in_background, stealth_mode, disable_extensions, safe_mode, file_name, failed_file_name, logs_folder_path, generated_resume_path
-from config.questions import default_resume_path
+from modules.config_loader import get_config
+from modules.helpers import find_default_profile_directory, critical_error_log, print_lg
+from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.support.ui import WebDriverWait
+
+config = get_config()
+settings = config.get('settings', {})
+questions = config.get('questions', {})
+
+run_in_background = settings.get('run_in_background', False)
+stealth_mode = settings.get('stealth_mode', True)
+disable_extensions = settings.get('disable_extensions', False)
+safe_mode = settings.get('safe_mode', False)
+file_name = settings.get('file_name', "all excels/all_applied_applications_history.csv")
+failed_file_name = settings.get('failed_file_name', "all excels/all_failed_applications_history.csv")
+logs_folder_path = settings.get('logs_folder_path', "logs/")
+generated_resume_path = settings.get('generated_resume_path', "all resumes/")
+default_resume_path = questions.get('default_resume_path', "all resumes/default/resume.pdf")
+
 if stealth_mode:
     import undetected_chromedriver as uc
 else: 
     from selenium import webdriver
     from selenium.webdriver.chrome.options import Options
     # from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.action_chains import ActionChains
-from selenium.webdriver.support.ui import WebDriverWait
-from modules.helpers import find_default_profile_directory, critical_error_log, print_lg
 
 try:
     make_directories([file_name,failed_file_name,logs_folder_path+"/screenshots",default_resume_path,generated_resume_path+"/temp"])
@@ -60,4 +74,3 @@ except Exception as e:
     alert(msg, "Error in opening chrome")
     try: driver.quit()
     except NameError: exit()
-    

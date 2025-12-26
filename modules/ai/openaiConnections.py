@@ -12,13 +12,7 @@ GitHub:     https://github.com/GodsScion/Auto_job_applier_linkedIn
 version:    24.12.29.12.30
 '''
 
-
-from config.secrets import *
-from config.settings import showAiErrorAlerts
-from config.personals import ethnicity, gender, disability_status, veteran_status
-from config.questions import *
-from config.search import security_clearance, did_masters
-
+from modules.config_loader import get_config
 from modules.helpers import print_lg, critical_error_log, convert_to_json
 from modules.ai.prompts import *
 
@@ -28,6 +22,22 @@ from openai.types.model import Model
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 from typing import Iterator, Literal
 
+# Load config
+config = get_config()
+secrets = config.get('secrets', {})
+settings = config.get('settings', {})
+personals = config.get('personals', {})
+questions = config.get('questions', {})
+search = config.get('search', {})
+
+# Map variables
+llm_api_url = secrets.get('llm_api_url', "")
+llm_api_key = secrets.get('llm_api_key', "")
+llm_model = secrets.get('llm_model', "")
+use_AI = secrets.get('use_AI', False)
+llm_spec = secrets.get('llm_spec', "openai")
+showAiErrorAlerts = settings.get('showAiErrorAlerts', False)
+stream_output = secrets.get('stream_output', False)
 
 apiCheckInstructions = """
 
@@ -299,20 +309,9 @@ def ai_evaluate_resume(
 
 
 
-def ai_evaluate_resume(
-    client: OpenAI, 
-    job_description: str, about_company: str, required_skills: dict,
-    resume: str,
-    stream: bool = stream_output
-) -> dict | ValueError:
-    pass
-
-
-
 def ai_check_job_relevance(
     client: OpenAI, 
     job_description: str, about_company: str,
     stream: bool = stream_output
 ) -> dict:
     pass
-#>

@@ -12,7 +12,7 @@ GitHub:     https://github.com/GodsScion/Auto_job_applier_linkedIn
 version:    24.12.29.12.30
 '''
 
-from config.settings import click_gap, smooth_scroll
+from modules.config_loader import get_config
 from modules.helpers import buffer, print_lg, sleep
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -21,6 +21,12 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.common.action_chains import ActionChains
+
+config = get_config()
+settings = config.get('settings', {})
+click_gap = settings.get('click_gap', 1)
+smooth_scroll = settings.get('smooth_scroll', False)
+
 
 # Click Functions
 def wait_span_click(driver: WebDriver, text: str, time: float=5.0, click: bool=True, scroll: bool=True, scrollTop: bool=False) -> WebElement | bool:
