@@ -1,10 +1,17 @@
 import google.generativeai as genai
-from config.secrets import llm_model, llm_api_key
-from config.settings import showAiErrorAlerts
+from modules.config_loader import get_config
 from modules.helpers import print_lg, critical_error_log, convert_to_json
 from modules.ai.prompts import *
 from pyautogui import confirm
 from typing import Literal
+
+config = get_config()
+secrets = config.get('secrets', {})
+settings = config.get('settings', {})
+
+llm_model = secrets.get('llm_model', "")
+llm_api_key = secrets.get('llm_api_key', "")
+showAiErrorAlerts = settings.get('showAiErrorAlerts', False)
 
 def gemini_get_models_list():
     """

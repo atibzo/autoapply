@@ -1,6 +1,5 @@
 ##> ------ Yang Li : MARKYangL - Feature ------
-from config.secrets import *
-from config.settings import showAiErrorAlerts
+from modules.config_loader import get_config
 from modules.helpers import print_lg, critical_error_log, convert_to_json
 from modules.ai.prompts import *
 
@@ -9,6 +8,17 @@ from openai import OpenAI
 from openai.types.model import Model
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 from typing import Iterator, Literal
+
+config = get_config()
+secrets = config.get('secrets', {})
+settings = config.get('settings', {})
+
+use_AI = secrets.get('use_AI', False)
+llm_api_url = secrets.get('llm_api_url', "")
+llm_api_key = secrets.get('llm_api_key', "")
+llm_model = secrets.get('llm_model', "")
+showAiErrorAlerts = settings.get('showAiErrorAlerts', False)
+stream_output = secrets.get('stream_output', False)
 
 def deepseek_create_client() -> OpenAI | None:
     '''
@@ -23,7 +33,6 @@ def deepseek_create_client() -> OpenAI | None:
         ##> ------ Tim L : tulxoro - Refactor ------
         base_url = llm_api_url
         
-
         if base_url.endswith('/'):
             base_url = base_url[:-1]
         
@@ -233,4 +242,4 @@ def deepseek_answer_question(
     except Exception as e:
         critical_error_log("Error occurred while answering question with DeepSeek!", e)
         return {"error": str(e)}
-##< 
+##<
