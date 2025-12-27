@@ -64,18 +64,90 @@ def save_configuration():
 @app.route('/api/bot/start', methods=['POST'])
 def start_bot():
     global bot_process
+    
+    # Check if running in a serverless/restricted environment
+    import shutil
+    
+    errors = []
+    
+    # Check for Chrome
+    chrome_path = shutil.which('google-chrome') or shutil.which('chromium-browser') or shutil.which('chromium')
+    if not chrome_path:
+        errors.append("Chrome browser is not installed or not found in PATH")
+    
+    # Check for required Python packages
+    missing_packages = []
+    try:
+        import selenium
+    except ImportError:
+        missing_packages.append("selenium")
+    
+    try:
+        import undetected_chromedriver
+    except ImportError:
+        missing_packages.append("undetected-chromedriver")
+    
+    try:
+        import pyautogui
+    except ImportError:
+        missing_packages.append("pyautogui")
+    
+    if missing_packages:
+        errors.append(f"Missing Python packages: {', '.join(missing_packages)}. Run: pip install {' '.join(missing_packages)}")
+    
+    # Check for display (needed for non-headless mode)
+    if not os.environ.get('DISPLAY') and os.name != 'nt':  # Not Windows
+        config_data = get_config()
+        run_in_background = config_data.get('settings', {}).get('run_in_background', False)
+        if not run_in_background:
+            errors.append("No display found. This bot requires a graphical environment or enable 'Run in Background' (headless mode) in Settings")
+    
+    # Check if this looks like a serverless environment (Vercel, AWS Lambda, etc.)
+    if os.environ.get('VERCEL') or os.environ.get('AWS_LAMBDA_FUNCTION_NAME') or os.environ.get('FUNCTIONS_WORKER_RUNTIME'):
+        errors.append("This bot cannot run on serverless platforms (Vercel, AWS Lambda, Azure Functions). It requires a local machine with Chrome browser installed.")
+    
+    if errors:
+        return jsonify({
+            "error": "Bot cannot start due to environment issues",
+            "details": errors,
+            "status": "error",
+            "suggestion": "This bot is designed to run locally on your computer. Please run it on a machine with Chrome installed."
+        }), 400
+    
     if bot_process and bot_process.poll() is None:
         return jsonify({"message": "Bot is already running", "status": "running"}), 400
     
     try:
         # Run runAiBot.py using the current python interpreter
-        bot_process = subprocess.Popen([sys.executable, 'runAiBot.py'], 
-                                     stdout=subprocess.PIPE, 
-                                     stderr=subprocess.PIPE,
-                                     text=True)
-        return jsonify({"message": "Bot started", "pid": bot_process.pid, "status": "running"}), 200
+        bot_process = subprocess.Popen(
+            [sys.executable, 'runAiBot.py'], 
+            stdout=subprocess.PIPE, 
+            stderr=subprocess.PIPE,
+            text=True,
+            cwd=os.path.dirname(os.path.abspath(__file__))
+        )
+        
+        # Wait briefly to check if process started successfully
+        import time
+        time.sleep(2)
+        
+        if bot_process.poll() is not None:
+            # Process already exited - there was an error
+            stdout, stderr = bot_process.communicate()
+            error_output = stderr or stdout or "Unknown error - bot exited immediately"
+            return jsonify({
+                "error": "Bot failed to start",
+                "details": [error_output[:1000]],  # Limit error length
+                "status": "error"
+            }), 500
+        
+        return jsonify({"message": "Bot started successfully", "pid": bot_process.pid, "status": "running"}), 200
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({
+            "error": "Failed to start bot",
+            "details": [str(e)],
+            "status": "error"
+        }), 500
 
 @app.route('/api/bot/stop', methods=['POST'])
 def stop_bot():
@@ -99,6 +171,61 @@ def bot_status():
         "status": status,
         "interaction": interaction
     })
+
+@app.route('/api/environment/check', methods=['GET'])
+def check_environment():
+    """Check if the environment can run the bot and return compatibility info"""
+    import shutil
+    
+    checks = {
+        "chrome_installed": False,
+        "selenium_installed": False,
+        "display_available": False,
+        "is_serverless": False,
+        "platform": sys.platform,
+        "errors": [],
+        "warnings": []
+    }
+    
+    # Check for Chrome
+    chrome_path = shutil.which('google-chrome') or shutil.which('chromium-browser') or shutil.which('chromium')
+    if chrome_path:
+        checks["chrome_installed"] = True
+    else:
+        checks["errors"].append("Chrome browser is not installed")
+    
+    # Check for required Python packages
+    try:
+        import selenium
+        checks["selenium_installed"] = True
+    except ImportError:
+        checks["errors"].append("Python package 'selenium' is not installed")
+    
+    try:
+        import undetected_chromedriver
+    except ImportError:
+        checks["errors"].append("Python package 'undetected-chromedriver' is not installed")
+    
+    # Check for display
+    if os.environ.get('DISPLAY') or os.name == 'nt':
+        checks["display_available"] = True
+    else:
+        checks["warnings"].append("No display detected. Enable 'Run in Background' mode in Settings for headless operation.")
+    
+    # Check for serverless environment
+    if os.environ.get('VERCEL'):
+        checks["is_serverless"] = True
+        checks["errors"].append("⚠️ Running on Vercel - This bot CANNOT run on serverless platforms. It requires a local machine with Chrome browser.")
+    elif os.environ.get('AWS_LAMBDA_FUNCTION_NAME'):
+        checks["is_serverless"] = True
+        checks["errors"].append("⚠️ Running on AWS Lambda - This bot CANNOT run on serverless platforms.")
+    elif os.environ.get('FUNCTIONS_WORKER_RUNTIME'):
+        checks["is_serverless"] = True
+        checks["errors"].append("⚠️ Running on Azure Functions - This bot CANNOT run on serverless platforms.")
+    
+    checks["compatible"] = len(checks["errors"]) == 0
+    
+    return jsonify(checks)
 
 @app.route('/api/bot/interact', methods=['POST'])
 def bot_interact():
