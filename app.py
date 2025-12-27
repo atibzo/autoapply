@@ -363,4 +363,12 @@ def update_applied_date(job_id):
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000, host='0.0.0.0')
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--port', type=int, default=5001, help='Port to run the server on (default: 5001)')
+    args = parser.parse_args()
+    
+    print(f"\n🚀 Starting LinkedIn Auto Job Applier...")
+    print(f"📍 Open http://localhost:{args.port} in your browser\n")
+    
+    app.run(debug=True, port=args.port, host='0.0.0.0')
