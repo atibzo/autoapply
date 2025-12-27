@@ -86,19 +86,54 @@ def multi_sel_noWait(driver: WebDriver, texts: list, actions: ActionChains = Non
             else:   print_lg("Click Failed! Didn't find '"+text+"'")
             # print_lg(e)
 
-def boolean_button_click(driver: WebDriver, actions: ActionChains, text: str) -> None:
+def boolean_button_click(driver: WebDriver, actions: ActionChains, text: str) -> bool:
     '''
-    Tries to click on the boolean button with the given `text` text.
+    Tries to click on the boolean button/toggle with the given `text` text.
+    Returns True if successful, False otherwise.
     '''
     try:
+        # Try method 1: Find by h3 ancestor (old LinkedIn UI)
         list_container = driver.find_element(By.XPATH, './/h3[normalize-space()="'+text+'"]/ancestor::fieldset')
         button = list_container.find_element(By.XPATH, './/input[@role="switch"]')
         scroll_to_view(driver, button)
         actions.move_to_element(button).click().perform()
         buffer(click_gap)
+        return True
+    except:
+        pass
+    
+    try:
+        # Try method 2: Find toggle switch by label text (new LinkedIn UI)
+        toggle = driver.find_element(By.XPATH, f'//span[contains(text(), "{text}")]//ancestor::div[contains(@class, "artdeco-toggle")]//input[@role="switch"]')
+        if toggle.get_attribute("aria-checked") == "false":
+            scroll_to_view(driver, toggle)
+            actions.move_to_element(toggle).click().perform()
+            buffer(click_gap)
+        return True
+    except:
+        pass
+    
+    try:
+        # Try method 3: Find by label for attribute
+        label = driver.find_element(By.XPATH, f'//label[contains(., "{text}")]')
+        scroll_to_view(driver, label)
+        label.click()
+        buffer(click_gap)
+        return True
+    except:
+        pass
+    
+    try:
+        # Try method 4: Find checkbox/switch near the text
+        container = driver.find_element(By.XPATH, f'//*[contains(text(), "{text}")]//ancestor::div[contains(@class, "toggle") or contains(@class, "switch") or contains(@class, "checkbox")]')
+        input_elem = container.find_element(By.XPATH, './/input')
+        scroll_to_view(driver, input_elem)
+        actions.move_to_element(input_elem).click().perform()
+        buffer(click_gap)
+        return True
     except Exception as e:
-        print_lg("Click Failed! Didn't find '"+text+"'")
-        # print_lg(e)
+        print_lg(f"Click Failed! Didn't find boolean button '{text}'")
+        return False
 
 # Find functions
 def find_by_class(driver: WebDriver, class_name: str, time: float=5.0) -> WebElement | Exception:

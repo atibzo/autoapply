@@ -290,57 +290,232 @@ def set_search_location() -> None:
             print_lg("Failed to update search location, continuing with default location!", e)
 
 
+def click_easy_apply_filter() -> bool:
+    """Click the Easy Apply quick filter pill"""
+    try:
+        # Try the quick filter pill first (outside All filters)
+        easy_apply_btn = driver.find_element(By.ID, "searchFilter_applyWithLinkedin")
+        if easy_apply_btn.get_attribute("aria-checked") == "false":
+            easy_apply_btn.click()
+            buffer(click_gap)
+            print_lg("Clicked Easy Apply filter pill")
+            return True
+        else:
+            print_lg("Easy Apply filter already selected")
+            return True
+    except Exception as e:
+        print_lg(f"Could not find Easy Apply quick filter: {e}")
+        return False
+
+
+def click_date_posted_filter(date_option: str) -> bool:
+    """Click the Date Posted filter and select an option"""
+    if not date_option:
+        return True
+        
+    try:
+        # Click the Date posted dropdown
+        date_btn = driver.find_element(By.ID, "searchFilter_timePostedRange")
+        date_btn.click()
+        buffer(1)
+        
+        # Map common date options to possible label texts
+        date_mappings = {
+            "Past 24 hours": ["Past 24 hours", "past 24 hours", "24 hours"],
+            "Past week": ["Past week", "past week", "week"],
+            "Past month": ["Past month", "past month", "month"],
+            "Any time": ["Any time", "any time", "Any"],
+        }
+        
+        # Find the matching option
+        possible_texts = date_mappings.get(date_option, [date_option])
+        
+        for text in possible_texts:
+            try:
+                # Try to find by label text
+                option = driver.find_element(By.XPATH, f'//label[contains(., "{text}")]')
+                option.click()
+                buffer(click_gap)
+                print_lg(f"Selected date filter: {text}")
+                return True
+            except:
+                try:
+                    # Try span
+                    option = driver.find_element(By.XPATH, f'//span[contains(text(), "{text}")]')
+                    option.click()
+                    buffer(click_gap)
+                    print_lg(f"Selected date filter: {text}")
+                    return True
+                except:
+                    continue
+        
+        print_lg(f"Could not find date option: {date_option}")
+        # Click elsewhere to close dropdown
+        actions.send_keys(Keys.ESCAPE).perform()
+        return False
+        
+    except Exception as e:
+        print_lg(f"Could not set date posted filter: {e}")
+        return False
+
+
+def apply_filters_via_all_filters() -> bool:
+    """Apply advanced filters via the All Filters modal"""
+    try:
+        # Click "All filters" button
+        all_filters_btn = wait.until(EC.element_to_be_clickable((By.XPATH, '//button[contains(., "All filters")]')))
+        all_filters_btn.click()
+        buffer(2)
+        
+        recommended_wait = 1 if click_gap < 1 else 0
+        
+        # Sort by
+        if sort_by:
+            wait_span_click(driver, sort_by, 2)
+            buffer(recommended_wait)
+        
+        # Experience level
+        multi_sel_noWait(driver, experience_level)
+        if experience_level: buffer(recommended_wait)
+        
+        # Companies
+        multi_sel_noWait(driver, companies, actions)
+        if companies: buffer(recommended_wait)
+        
+        # Job type
+        multi_sel_noWait(driver, job_type)
+        if job_type: buffer(recommended_wait)
+        
+        # On-site/Remote
+        multi_sel_noWait(driver, on_site)
+        if on_site: buffer(recommended_wait)
+        
+        # Easy Apply toggle (inside All Filters modal)
+        if easy_apply_only:
+            try:
+                # Find the Easy Apply toggle switch
+                toggle = driver.find_element(By.XPATH, '//input[@role="switch" and contains(@id, "Toggle")]//ancestor::div[contains(@class, "artdeco-toggle")]//label[contains(., "Easy Apply")]')
+                toggle.click()
+                buffer(click_gap)
+            except:
+                try:
+                    # Alternative: find by the label text
+                    toggle_label = driver.find_element(By.XPATH, '//span[contains(text(), "Toggle Easy Apply")]//ancestor::div[contains(@class, "artdeco-toggle")]//input[@role="switch"]')
+                    if toggle_label.get_attribute("aria-checked") == "false":
+                        toggle_label.click()
+                        buffer(click_gap)
+                except Exception as e:
+                    print_lg(f"Could not toggle Easy Apply in All Filters: {e}")
+        
+        # Location
+        multi_sel_noWait(driver, location)
+        if location: buffer(recommended_wait)
+        
+        # Industry
+        multi_sel_noWait(driver, industry)
+        if industry: buffer(recommended_wait)
+        
+        # Job function
+        multi_sel_noWait(driver, job_function)
+        if job_function: buffer(recommended_wait)
+        
+        # Job titles
+        multi_sel_noWait(driver, job_titles)
+        if job_titles: buffer(recommended_wait)
+        
+        # Other boolean filters
+        if under_10_applicants: 
+            boolean_button_click(driver, actions, "Under 10 applicants")
+        if in_your_network: 
+            boolean_button_click(driver, actions, "In your network")
+        if fair_chance_employer: 
+            boolean_button_click(driver, actions, "Fair Chance Employer")
+        
+        # Salary
+        if salary:
+            wait_span_click(driver, salary, 2)
+            buffer(recommended_wait)
+        
+        # Benefits
+        multi_sel_noWait(driver, benefits)
+        if benefits: buffer(recommended_wait)
+        
+        # Commitments
+        multi_sel_noWait(driver, commitments)
+        if commitments: buffer(recommended_wait)
+        
+        # Click "Show results" button
+        try:
+            show_results_btn = driver.find_element(By.XPATH, '//button[contains(@class, "artdeco-button") and contains(., "Show") and contains(., "result")]')
+            show_results_btn.click()
+            buffer(2)
+            print_lg("Clicked Show results button")
+        except Exception as e:
+            print_lg(f"Could not find Show results button: {e}")
+            # Try pressing Escape to close modal
+            actions.send_keys(Keys.ESCAPE).perform()
+        
+        return True
+        
+    except Exception as e:
+        print_lg(f"Failed to apply filters via All Filters modal: {e}")
+        # Try to close any open modal
+        try:
+            actions.send_keys(Keys.ESCAPE).perform()
+        except:
+            pass
+        return False
+
+
 def apply_filters() -> None:
+    """Apply search filters using the current LinkedIn UI"""
     set_search_location()
 
     try:
-        recommended_wait = 1 if click_gap < 1 else 0
-
-        wait.until(EC.presence_of_element_located((By.XPATH, '//button[normalize-space()="All filters"]'))).click()
-        buffer(recommended_wait)
-
-        wait_span_click(driver, sort_by)
-        wait_span_click(driver, date_posted)
-        buffer(recommended_wait)
-
-        multi_sel_noWait(driver, experience_level) 
-        multi_sel_noWait(driver, companies, actions)
-        if experience_level or companies: buffer(recommended_wait)
-
-        multi_sel_noWait(driver, job_type)
-        multi_sel_noWait(driver, on_site)
-        if job_type or on_site: buffer(recommended_wait)
-
-        if easy_apply_only: boolean_button_click(driver, actions, "Easy Apply")
+        buffer(2)  # Wait for page to load
         
-        multi_sel_noWait(driver, location)
-        multi_sel_noWait(driver, industry)
-        if location or industry: buffer(recommended_wait)
-
-        multi_sel_noWait(driver, job_function)
-        multi_sel_noWait(driver, job_titles)
-        if job_function or job_titles: buffer(recommended_wait)
-
-        if under_10_applicants: boolean_button_click(driver, actions, "Under 10 applicants")
-        if in_your_network: boolean_button_click(driver, actions, "In your network")
-        if fair_chance_employer: boolean_button_click(driver, actions, "Fair Chance Employer")
-
-        wait_span_click(driver, salary)
-        buffer(recommended_wait)
+        # Step 1: Apply Easy Apply quick filter (if enabled)
+        if easy_apply_only:
+            click_easy_apply_filter()
+            buffer(1)
         
-        multi_sel_noWait(driver, benefits)
-        multi_sel_noWait(driver, commitments)
-        if benefits or commitments: buffer(recommended_wait)
-
-        show_results_button: WebElement = driver.find_element(By.XPATH, '//button[contains(@aria-label, "Apply current filters to show")]')
-        show_results_button.click()
-
+        # Step 2: Apply Date Posted filter
+        if date_posted:
+            click_date_posted_filter(date_posted)
+            buffer(1)
+        
+        # Step 3: Apply advanced filters via All Filters modal (if any are configured)
+        has_advanced_filters = any([
+            sort_by, experience_level, companies, job_type, on_site,
+            location, industry, job_function, job_titles,
+            under_10_applicants, in_your_network, fair_chance_employer,
+            salary, benefits, commitments
+        ])
+        
+        if has_advanced_filters:
+            apply_filters_via_all_filters()
+        
+        buffer(2)  # Wait for results to load
+        
         global pause_after_filters
-        if pause_after_filters and "Turn off Pause after search" == pyautogui.confirm("These are your configured search results and filter. It is safe to change them while this dialog is open, any changes later could result in errors and skipping this search run.", "Please check your results", ["Turn off Pause after search", "Look's good, Continue"]):
-            pause_after_filters = False
+        if pause_after_filters:
+            try:
+                result = pyautogui.confirm(
+                    "These are your configured search results and filters.\n"
+                    "It is safe to change them while this dialog is open.\n"
+                    "Any changes later could result in errors and skipping this search run.",
+                    "Please check your results", 
+                    ["Turn off Pause after search", "Looks good, Continue"]
+                )
+                if result == "Turn off Pause after search":
+                    pause_after_filters = False
+            except Exception as e:
+                print_lg(f"Could not show confirmation dialog: {e}")
+                pause_after_filters = False
 
     except Exception as e:
-        print_lg("Setting the preferences failed!")
+        print_lg(f"Setting the preferences failed! Error: {e}")
+        # Continue anyway - we can still apply to jobs without filters
 
 
 def get_page_info() -> tuple[WebElement | None, int | None]:
