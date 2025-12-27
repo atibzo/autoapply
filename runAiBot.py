@@ -357,38 +357,57 @@ def get_page_info() -> tuple[WebElement | None, int | None]:
 
 
 def get_job_main_details(job: WebElement, blacklisted_companies: set, rejected_jobs: set) -> tuple[str, str, str, str, str, bool]:
-    job_details_button = job.find_element(By.TAG_NAME, 'a') 
-    scroll_to_view(driver, job_details_button, True)
-    job_id = job.get_dom_attribute('data-occludable-job-id')
-    title = job_details_button.text
-    title = title[:title.find("\n")]
-    other_details = job.find_element(By.CLASS_NAME, 'artdeco-entity-lockup__subtitle').text
-    index = other_details.find(' · ')
-    company = other_details[:index]
-    work_location = other_details[index+3:]
-    work_style = work_location[work_location.rfind('(')+1:work_location.rfind(')')]
-    work_location = work_location[:work_location.rfind('(')].strip()
-    
-    skip = False
-    if company in blacklisted_companies:
-        print_lg(f'Skipping "{title} | {company}" job (Blacklisted Company). Job ID: {job_id}!')
-        skip = True
-    elif job_id in rejected_jobs: 
-        print_lg(f'Skipping previously rejected "{title} | {company}" job. Job ID: {job_id}!')
-        skip = True
     try:
-        if job.find_element(By.CLASS_NAME, "job-card-container__footer-job-state").text == "Applied":
+        job_details_button = job.find_element(By.TAG_NAME, 'a') 
+        scroll_to_view(driver, job_details_button, True)
+        job_id = job.get_dom_attribute('data-occludable-job-id')
+        title = job_details_button.text
+        title = title[:title.find("\n")] if "\n" in title else title
+        other_details = job.find_element(By.CLASS_NAME, 'artdeco-entity-lockup__subtitle').text
+        index = other_details.find(' · ')
+        if index == -1:
+            # Fallback if format is different
+            company = other_details.split('\n')[0] if '\n' in other_details else other_details
+            work_location = ""
+            work_style = ""
+        else:
+            company = other_details[:index]
+            work_location = other_details[index+3:]
+            work_style = work_location[work_location.rfind('(')+1:work_location.rfind(')')]
+            work_location = work_location[:work_location.rfind('(')].strip() if '(' in work_location else work_location
+        
+        skip = False
+        if company in blacklisted_companies:
+            print_lg(f'Skipping "{title} | {company}" job (Blacklisted Company). Job ID: {job_id}!')
             skip = True
-            print_lg(f'Already applied to "{title} | {company}" job. Job ID: {job_id}!')
-    except: pass
-    try: 
-        if not skip: job_details_button.click()
+        elif job_id in rejected_jobs: 
+            print_lg(f'Skipping previously rejected "{title} | {company}" job. Job ID: {job_id}!')
+            skip = True
+        try:
+            if job.find_element(By.CLASS_NAME, "job-card-container__footer-job-state").text == "Applied":
+                skip = True
+                print_lg(f'Already applied to "{title} | {company}" job. Job ID: {job_id}!')
+        except: pass
+        
+        if not skip:
+            try: 
+                job_details_button.click()
+            except Exception as e:
+                print_lg(f'Failed to click "{title} | {company}" job on details button. Job ID: {job_id}!') 
+                try:
+                    discard_job()
+                    job_details_button.click()
+                except Exception as e2:
+                    print_lg(f'Retry click also failed, skipping this job. Error: {e2}')
+                    skip = True
+        
+        buffer(click_gap)
+        return (job_id, title, company, work_location, work_style, skip)
+        
     except Exception as e:
-        print_lg(f'Failed to click "{title} | {company}" job on details button. Job ID: {job_id}!') 
-        discard_job()
-        job_details_button.click() 
-    buffer(click_gap)
-    return (job_id,title,company,work_location,work_style,skip)
+        # Handle stale element or any other error - skip this job and continue
+        print_lg(f'Error getting job details (possibly stale element), skipping job. Error: {e}')
+        return ("unknown", "Unknown", "Unknown", "", "", True)
 
 
 def check_blacklist(rejected_jobs: set, job_id: str, company: str, blacklisted_companies: set) -> tuple[set, set, WebElement] | ValueError:
@@ -867,13 +886,17 @@ def apply_to_jobs(search_terms: list[str]) -> None:
 
             
                 for job in job_listings:
-                    if keep_screen_awake: pyautogui.press('shiftright')
-                    if current_count >= switch_number: break
-                    print_lg("\n-@-\n")
+                    try:
+                        if keep_screen_awake: pyautogui.press('shiftright')
+                        if current_count >= switch_number: break
+                        print_lg("\n-@-\n")
 
-                    job_id,title,company,work_location,work_style,skip = get_job_main_details(job, blacklisted_companies, rejected_jobs)
-                    
-                    if skip: continue
+                        job_id,title,company,work_location,work_style,skip = get_job_main_details(job, blacklisted_companies, rejected_jobs)
+                        
+                        if skip: continue
+                    except Exception as job_error:
+                        print_lg(f"Error processing job listing, skipping to next: {job_error}")
+                        continue
                     try:
                         if job_id in applied_jobs or find_by_class(driver, "jobs-s-apply__application-link", 2):
                             print_lg(f'Already applied to "{title} | {company}" job. Job ID: {job_id}!')
@@ -1036,9 +1059,21 @@ def apply_to_jobs(search_terms: list[str]) -> None:
                     print_lg(f"\n>-> Didn't find Page {current_page+1}. Probably at the end page of results!\n")
                     break
 
-        except (NoSuchWindowException, WebDriverException) as e:
-            print_lg("Browser window closed or session is invalid. Ending application process.", e)
-            raise e 
+        except NoSuchWindowException as e:
+            print_lg("Browser window closed. Ending application process.", e)
+            raise e
+        except WebDriverException as e:
+            # Check if it's a stale element or similar recoverable error
+            error_msg = str(e).lower()
+            if 'stale element' in error_msg or 'element not found' in error_msg:
+                print_lg(f"Encountered a stale element error, moving to next search term. Error: {e}")
+                continue  # Try next search term instead of crashing
+            elif 'session' in error_msg or 'disconnected' in error_msg or 'not reachable' in error_msg:
+                print_lg("Browser session is invalid. Ending application process.", e)
+                raise e
+            else:
+                print_lg(f"WebDriver error occurred: {e}")
+                continue  # Try next search term
         except Exception as e:
             print_lg("Failed to find Job listings!")
             critical_error_log("In Applier", e)
@@ -1046,6 +1081,8 @@ def apply_to_jobs(search_terms: list[str]) -> None:
                 print_lg(driver.page_source, pretty=True)
             except Exception as page_source_error:
                 print_lg(f"Failed to get page source, browser might have crashed. {page_source_error}")
+            # Continue to next search term instead of crashing
+            continue
 
         
 def run(total_runs: int) -> int:
