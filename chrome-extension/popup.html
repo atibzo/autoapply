@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>LinkedIn Auto Apply</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      width: 380px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f3f2ef;
+      color: #333;
+    }
+    
+    .header {
+      background: linear-gradient(135deg, #0077b5 0%, #005885 100%);
+      color: white;
+      padding: 20px;
+      text-align: center;
+    }
+    
+    .header h1 {
+      font-size: 18px;
+      margin-bottom: 5px;
+    }
+    
+    .header .status {
+      font-size: 12px;
+      opacity: 0.9;
+    }
+    
+    .status-indicator {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 6px;
+    }
+    
+    .status-indicator.stopped { background: #ff6b6b; }
+    .status-indicator.running { background: #51cf66; animation: pulse 1.5s infinite; }
+    .status-indicator.paused { background: #ffd43b; }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    
+    .container {
+      padding: 15px;
+    }
+    
+    .control-buttons {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    
+    .btn {
+      flex: 1;
+      padding: 12px;
+      border: none;
+      border-radius: 24px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .btn:hover { transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    
+    .btn-primary {
+      background: #0a66c2;
+      color: white;
+    }
+    
+    .btn-primary:hover:not(:disabled) { background: #004182; }
+    
+    .btn-danger {
+      background: #cc1016;
+      color: white;
+    }
+    
+    .btn-danger:hover:not(:disabled) { background: #990000; }
+    
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    
+    .stat-box {
+      background: white;
+      padding: 12px;
+      border-radius: 8px;
+      text-align: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    
+    .stat-box .number {
+      font-size: 24px;
+      font-weight: bold;
+      color: #0a66c2;
+    }
+    
+    .stat-box .label {
+      font-size: 11px;
+      color: #666;
+      margin-top: 4px;
+    }
+    
+    .section {
+      background: white;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 15px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    
+    .section h3 {
+      font-size: 14px;
+      margin-bottom: 12px;
+      color: #0a66c2;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 8px;
+    }
+    
+    .form-group {
+      margin-bottom: 12px;
+    }
+    
+    .form-group label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      margin-bottom: 4px;
+      color: #555;
+    }
+    
+    .form-group input[type="text"],
+    .form-group input[type="number"],
+    .form-group textarea,
+    .form-group select {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    
+    .form-group textarea {
+      height: 60px;
+      resize: vertical;
+    }
+    
+    .form-group input:focus,
+    .form-group textarea:focus,
+    .form-group select:focus {
+      outline: none;
+      border-color: #0a66c2;
+    }
+    
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .checkbox-group input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+    }
+    
+    .log-area {
+      background: #1e1e1e;
+      color: #00ff00;
+      font-family: monospace;
+      font-size: 11px;
+      padding: 10px;
+      border-radius: 4px;
+      height: 120px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+    
+    .tabs {
+      display: flex;
+      border-bottom: 2px solid #eee;
+      margin-bottom: 15px;
+    }
+    
+    .tab {
+      flex: 1;
+      padding: 10px;
+      text-align: center;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      color: #666;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+    }
+    
+    .tab.active {
+      color: #0a66c2;
+      border-bottom-color: #0a66c2;
+    }
+    
+    .tab-content {
+      display: none;
+    }
+    
+    .tab-content.active {
+      display: block;
+    }
+    
+    .footer {
+      text-align: center;
+      padding: 10px;
+      font-size: 11px;
+      color: #999;
+    }
+    
+    .footer a {
+      color: #0a66c2;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🚀 LinkedIn Auto Apply</h1>
+    <div class="status">
+      <span id="statusIndicator" class="status-indicator stopped"></span>
+      <span id="statusText">Stopped</span>
+    </div>
+  </div>
+  
+  <div class="container">
+    <div class="control-buttons">
+      <button id="startBtn" class="btn btn-primary">▶ Start</button>
+      <button id="stopBtn" class="btn btn-danger" disabled>⏹ Stop</button>
+    </div>
+    
+    <div class="stats">
+      <div class="stat-box">
+        <div id="appliedCount" class="number">0</div>
+        <div class="label">Applied</div>
+      </div>
+      <div class="stat-box">
+        <div id="skippedCount" class="number">0</div>
+        <div class="label">Skipped</div>
+      </div>
+      <div class="stat-box">
+        <div id="failedCount" class="number">0</div>
+        <div class="label">Failed</div>
+      </div>
+    </div>
+    
+    <div class="tabs">
+      <div class="tab active" data-tab="settings">⚙️ Settings</div>
+      <div class="tab" data-tab="filters">🔍 Filters</div>
+      <div class="tab" data-tab="logs">📋 Logs</div>
+    </div>
+    
+    <!-- Settings Tab -->
+    <div id="settings" class="tab-content active">
+      <div class="section">
+        <h3>Search Settings</h3>
+        <div class="form-group">
+          <label>Search Keywords</label>
+          <input type="text" id="searchKeywords" placeholder="Product Manager, Software Engineer">
+        </div>
+        <div class="form-group">
+          <label>Location</label>
+          <input type="text" id="searchLocation" placeholder="Worldwide">
+        </div>
+        <div class="form-group">
+          <label>Date Posted</label>
+          <select id="datePosted">
+            <option value="any">Any time</option>
+            <option value="month">Past month</option>
+            <option value="week" selected>Past week</option>
+            <option value="day">Past 24 hours</option>
+          </select>
+        </div>
+      </div>
+      
+      <div class="section">
+        <h3>Application Settings</h3>
+        <div class="form-group checkbox-group">
+          <input type="checkbox" id="easyApplyOnly" checked>
+          <label for="easyApplyOnly">Easy Apply only</label>
+        </div>
+        <div class="form-group checkbox-group">
+          <input type="checkbox" id="pauseBeforeSubmit">
+          <label for="pauseBeforeSubmit">Pause before submit</label>
+        </div>
+        <div class="form-group">
+          <label>Max applications per session</label>
+          <input type="number" id="maxApplications" value="50" min="1" max="200">
+        </div>
+        <div class="form-group">
+          <label>Delay between applications (seconds)</label>
+          <input type="number" id="delayBetween" value="3" min="1" max="30">
+        </div>
+      </div>
+    </div>
+    
+    <!-- Filters Tab -->
+    <div id="filters" class="tab-content">
+      <div class="section">
+        <h3>Job Filters</h3>
+        <div class="form-group">
+          <label>Skip jobs containing these words (comma separated)</label>
+          <textarea id="badWords" placeholder="senior, lead, manager, clearance"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Skip companies (comma separated)</label>
+          <textarea id="badCompanies" placeholder="CompanyA, CompanyB"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Max years experience required</label>
+          <input type="number" id="maxExperience" value="10" min="0" max="20">
+        </div>
+      </div>
+      
+      <div class="section">
+        <h3>Your Info (for form filling)</h3>
+        <div class="form-group">
+          <label>Years of Experience</label>
+          <input type="number" id="yearsExperience" value="5" min="0" max="50">
+        </div>
+        <div class="form-group">
+          <label>Phone Number</label>
+          <input type="text" id="phoneNumber" placeholder="+1234567890">
+        </div>
+        <div class="form-group">
+          <label>LinkedIn URL</label>
+          <input type="text" id="linkedinUrl" placeholder="https://linkedin.com/in/yourprofile">
+        </div>
+      </div>
+    </div>
+    
+    <!-- Logs Tab -->
+    <div id="logs" class="tab-content">
+      <div class="section">
+        <h3>Activity Log</h3>
+        <div id="logArea" class="log-area">Waiting to start...</div>
+        <button id="clearLogs" class="btn btn-primary" style="margin-top: 10px; width: 100%;">Clear Logs</button>
+      </div>
+    </div>
+    
+    <button id="saveSettings" class="btn btn-primary" style="width: 100%;">💾 Save Settings</button>
+  </div>
+  
+  <div class="footer">
+    <a href="https://github.com/atibzo/autoapply" target="_blank">GitHub</a> | v1.0.0
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>
