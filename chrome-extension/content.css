@@ -1,0 +1,89 @@
+/* LinkedIn Auto Apply - Content Script Styles */
+
+/* Indicator badge */
+#linkedin-auto-apply-indicator {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #0a66c2 0%, #004182 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+  z-index: 10000;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+#linkedin-auto-apply-indicator:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+}
+
+#linkedin-auto-apply-indicator.running {
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 2px 10px rgba(10, 102, 194, 0.5);
+  }
+  50% {
+    box-shadow: 0 2px 20px rgba(10, 102, 194, 0.8);
+  }
+}
+
+/* Highlight currently processing job */
+.linkedin-auto-apply-processing {
+  outline: 3px solid #0a66c2 !important;
+  outline-offset: 2px;
+  animation: highlight-pulse 1s infinite;
+}
+
+@keyframes highlight-pulse {
+  0%, 100% {
+    outline-color: #0a66c2;
+  }
+  50% {
+    outline-color: #004182;
+  }
+}
+
+/* Applied job indicator */
+.linkedin-auto-apply-applied {
+  position: relative;
+}
+
+.linkedin-auto-apply-applied::after {
+  content: '✓ Auto Applied';
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  background: #057642;
+  color: white;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-weight: bold;
+}
+
+/* Skipped job indicator */
+.linkedin-auto-apply-skipped {
+  opacity: 0.6;
+}
+
+.linkedin-auto-apply-skipped::after {
+  content: '⏭️ Skipped';
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  background: #666;
+  color: white;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+}

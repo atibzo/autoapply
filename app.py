@@ -41,6 +41,51 @@ def set_interaction_response(response_text):
         return True
     return False
 
+# --- Helper Functions ---
+
+def find_chrome():
+    """Find Chrome browser installation"""
+    import shutil
+    
+    # Check PATH first
+    chrome_path = shutil.which('google-chrome') or shutil.which('chromium-browser') or shutil.which('chromium') or shutil.which('chrome')
+    if chrome_path:
+        return chrome_path
+    
+    # Check common installation paths
+    common_paths = []
+    
+    if sys.platform == 'win32':
+        # Windows paths
+        common_paths = [
+            os.path.expandvars(r'%ProgramFiles%\Google\Chrome\Application\chrome.exe'),
+            os.path.expandvars(r'%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe'),
+            os.path.expandvars(r'%LocalAppData%\Google\Chrome\Application\chrome.exe'),
+            r'C:\Program Files\Google\Chrome\Application\chrome.exe',
+            r'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe',
+        ]
+    elif sys.platform == 'darwin':
+        # macOS paths
+        common_paths = [
+            '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+            os.path.expanduser('~/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'),
+        ]
+    else:
+        # Linux paths
+        common_paths = [
+            '/usr/bin/google-chrome',
+            '/usr/bin/google-chrome-stable',
+            '/usr/bin/chromium',
+            '/usr/bin/chromium-browser',
+            '/snap/bin/chromium',
+        ]
+    
+    for path in common_paths:
+        if os.path.exists(path):
+            return path
+    
+    return None
+
 # --- Routes ---
 
 @app.route('/')
@@ -71,9 +116,9 @@ def start_bot():
     errors = []
     
     # Check for Chrome
-    chrome_path = shutil.which('google-chrome') or shutil.which('chromium-browser') or shutil.which('chromium')
+    chrome_path = find_chrome()
     if not chrome_path:
-        errors.append("Chrome browser is not installed or not found in PATH")
+        errors.append("Chrome browser is not installed. Please install Google Chrome from https://www.google.com/chrome/")
     
     # Check for required Python packages
     missing_packages = []
@@ -96,7 +141,9 @@ def start_bot():
         errors.append(f"Missing Python packages: {', '.join(missing_packages)}. Run: pip install {' '.join(missing_packages)}")
     
     # Check for display (needed for non-headless mode)
-    if not os.environ.get('DISPLAY') and os.name != 'nt':  # Not Windows
+    # macOS and Windows always have display available when running locally
+    has_display = sys.platform in ('darwin', 'win32') or os.environ.get('DISPLAY')
+    if not has_display:
         config_data = get_config()
         run_in_background = config_data.get('settings', {}).get('run_in_background', False)
         if not run_in_background:
@@ -137,17 +184,56 @@ def start_bot():
             error_output = stderr or stdout or "Unknown error - bot exited immediately"
             return jsonify({
                 "error": "Bot failed to start",
-                "details": [error_output[:1000]],  # Limit error length
+                "details": [error_output[:2000]],  # Limit error length
                 "status": "error"
             }), 500
         
         return jsonify({"message": "Bot started successfully", "pid": bot_process.pid, "status": "running"}), 200
     except Exception as e:
+        import traceback
         return jsonify({
             "error": "Failed to start bot",
-            "details": [str(e)],
+            "details": [str(e), traceback.format_exc()[:1000]],
             "status": "error"
         }), 500
+
+
+@app.route('/api/bot/logs', methods=['GET'])
+def get_bot_logs():
+    """Get the bot's log file contents"""
+    try:
+        log_path = "logs/log.txt"
+        if os.path.exists(log_path):
+            with open(log_path, 'r', encoding='utf-8') as f:
+                # Get last 100 lines
+                lines = f.readlines()
+                last_lines = lines[-100:] if len(lines) > 100 else lines
+                return jsonify({"logs": "".join(last_lines)})
+        return jsonify({"logs": "No logs yet"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/bot/output', methods=['GET'])
+def get_bot_output():
+    """Get real-time output from the bot process"""
+    global bot_process
+    output = {"stdout": "", "stderr": "", "running": False}
+    
+    if bot_process:
+        output["running"] = bot_process.poll() is None
+        
+        if bot_process.poll() is not None:
+            # Process has ended, get all output
+            try:
+                stdout, stderr = bot_process.communicate(timeout=1)
+                output["stdout"] = stdout[-2000:] if stdout else ""
+                output["stderr"] = stderr[-2000:] if stderr else ""
+                output["exit_code"] = bot_process.returncode
+            except:
+                pass
+    
+    return jsonify(output)
 
 @app.route('/api/bot/stop', methods=['POST'])
 def stop_bot():
@@ -188,11 +274,12 @@ def check_environment():
     }
     
     # Check for Chrome
-    chrome_path = shutil.which('google-chrome') or shutil.which('chromium-browser') or shutil.which('chromium')
+    chrome_path = find_chrome()
     if chrome_path:
         checks["chrome_installed"] = True
+        checks["chrome_path"] = chrome_path
     else:
-        checks["errors"].append("Chrome browser is not installed")
+        checks["errors"].append("Chrome browser is not installed or not found. Please install Google Chrome.")
     
     # Check for required Python packages
     try:
@@ -207,7 +294,13 @@ def check_environment():
         checks["errors"].append("Python package 'undetected-chromedriver' is not installed")
     
     # Check for display
-    if os.environ.get('DISPLAY') or os.name == 'nt':
+    # On macOS and Windows, display is always available if running locally
+    # On Linux, check DISPLAY environment variable
+    if sys.platform == 'darwin':  # macOS
+        checks["display_available"] = True
+    elif sys.platform == 'win32':  # Windows
+        checks["display_available"] = True
+    elif os.environ.get('DISPLAY'):  # Linux with X11
         checks["display_available"] = True
     else:
         checks["warnings"].append("No display detected. Enable 'Run in Background' mode in Settings for headless operation.")
@@ -309,4 +402,12 @@ def update_applied_date(job_id):
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000, host='0.0.0.0')
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--port', type=int, default=5001, help='Port to run the server on (default: 5001)')
+    args = parser.parse_args()
+    
+    print(f"\n🚀 Starting LinkedIn Auto Job Applier...")
+    print(f"📍 Open http://localhost:{args.port} in your browser\n")
+    
+    app.run(debug=True, port=args.port, host='0.0.0.0')

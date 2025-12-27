@@ -1,6 +1,9 @@
 # LinkedIn Auto Job Applier - Python Dependencies
 # Install with: pip install -r requirements.txt
 
+# Python 3.12+ compatibility (distutils removed in 3.12)
+setuptools>=69.0.0
+
 # Web automation
 selenium>=4.0.0
 undetected-chromedriver>=3.5.0

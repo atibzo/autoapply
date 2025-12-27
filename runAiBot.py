@@ -290,57 +290,299 @@ def set_search_location() -> None:
             print_lg("Failed to update search location, continuing with default location!", e)
 
 
+def click_easy_apply_filter() -> bool:
+    """Click the Easy Apply quick filter pill"""
+    try:
+        # Try the quick filter pill first (outside All filters)
+        easy_apply_btn = driver.find_element(By.ID, "searchFilter_applyWithLinkedin")
+        if easy_apply_btn.get_attribute("aria-checked") == "false":
+            easy_apply_btn.click()
+            buffer(click_gap)
+            print_lg("Clicked Easy Apply filter pill")
+            return True
+        else:
+            print_lg("Easy Apply filter already selected")
+            return True
+    except Exception as e:
+        print_lg(f"Could not find Easy Apply quick filter: {e}")
+        return False
+
+
+def click_date_posted_filter(date_option: str) -> bool:
+    """Click the Date Posted filter and select an option"""
+    if not date_option:
+        return True
+        
+    try:
+        # Click the Date posted dropdown button
+        try:
+            date_btn = driver.find_element(By.ID, "searchFilter_timePostedRange")
+        except:
+            # Fallback: find by text
+            date_btn = driver.find_element(By.XPATH, '//button[contains(., "Date posted")]')
+        
+        date_btn.click()
+        buffer(1)
+        
+        # Map config values to exact LinkedIn label texts
+        date_mappings = {
+            "Past 24 hours": "Past 24 hours",
+            "Past week": "Past week", 
+            "Past month": "Past month",
+            "Any time": "Any time",
+            # Also support lowercase/variations from config
+            "past 24 hours": "Past 24 hours",
+            "past week": "Past week",
+            "past month": "Past month",
+            "any time": "Any time",
+        }
+        
+        target_text = date_mappings.get(date_option, date_option)
+        
+        # Method 1: Click the label directly (new LinkedIn UI)
+        try:
+            label = driver.find_element(By.XPATH, f'//label[contains(@class, "search-reusables__value-label")]//span[contains(text(), "{target_text}")]//ancestor::label')
+            scroll_to_view(driver, label)
+            label.click()
+            buffer(click_gap)
+            print_lg(f"Selected date filter: {target_text}")
+            
+            # Click "Show results" button in the dropdown
+            try:
+                show_btn = driver.find_element(By.XPATH, '//button[contains(@class, "artdeco-button--primary") and contains(., "Show")]')
+                show_btn.click()
+                buffer(1)
+            except:
+                # Try pressing Enter or clicking elsewhere
+                actions.send_keys(Keys.ENTER).perform()
+            
+            return True
+        except:
+            pass
+        
+        # Method 2: Find by span text and click its parent
+        try:
+            span = driver.find_element(By.XPATH, f'//span[contains(@class, "t-14") and contains(text(), "{target_text}")]')
+            parent_label = span.find_element(By.XPATH, './ancestor::label')
+            scroll_to_view(driver, parent_label)
+            parent_label.click()
+            buffer(click_gap)
+            print_lg(f"Selected date filter (method 2): {target_text}")
+            
+            # Click "Show results" button
+            try:
+                show_btn = driver.find_element(By.XPATH, '//button[contains(., "Show results") or contains(., "Show")]')
+                show_btn.click()
+                buffer(1)
+            except:
+                actions.send_keys(Keys.ENTER).perform()
+            
+            return True
+        except:
+            pass
+        
+        # Method 3: Find radio input by partial ID and click
+        try:
+            # timePostedRange IDs use seconds: r86400 (24h), r604800 (week), r2592000 (month)
+            time_to_seconds = {
+                "Past 24 hours": "86400",
+                "Past week": "604800",
+                "Past month": "2592000",
+            }
+            if target_text in time_to_seconds:
+                radio = driver.find_element(By.XPATH, f'//input[contains(@id, "timePostedRange") and contains(@id, "{time_to_seconds[target_text]}")]')
+                scroll_to_view(driver, radio)
+                radio.click()
+                buffer(click_gap)
+                print_lg(f"Selected date filter (method 3): {target_text}")
+                
+                # Click "Show results"
+                try:
+                    show_btn = driver.find_element(By.XPATH, '//button[contains(., "Show")]')
+                    show_btn.click()
+                    buffer(1)
+                except:
+                    pass
+                
+                return True
+        except:
+            pass
+        
+        print_lg(f"Could not find date option: {date_option}")
+        # Click Cancel or elsewhere to close dropdown
+        try:
+            cancel_btn = driver.find_element(By.XPATH, '//button[contains(., "Cancel") or contains(., "Reset")]')
+            cancel_btn.click()
+        except:
+            actions.send_keys(Keys.ESCAPE).perform()
+        return False
+        
+    except Exception as e:
+        print_lg(f"Could not set date posted filter: {e}")
+        try:
+            actions.send_keys(Keys.ESCAPE).perform()
+        except:
+            pass
+        return False
+
+
+def apply_filters_via_all_filters() -> bool:
+    """Apply advanced filters via the All Filters modal"""
+    try:
+        # Click "All filters" button
+        all_filters_btn = wait.until(EC.element_to_be_clickable((By.XPATH, '//button[contains(., "All filters")]')))
+        all_filters_btn.click()
+        buffer(2)
+        
+        recommended_wait = 1 if click_gap < 1 else 0
+        
+        # Sort by
+        if sort_by:
+            wait_span_click(driver, sort_by, 2)
+            buffer(recommended_wait)
+        
+        # Experience level
+        multi_sel_noWait(driver, experience_level)
+        if experience_level: buffer(recommended_wait)
+        
+        # Companies
+        multi_sel_noWait(driver, companies, actions)
+        if companies: buffer(recommended_wait)
+        
+        # Job type
+        multi_sel_noWait(driver, job_type)
+        if job_type: buffer(recommended_wait)
+        
+        # On-site/Remote
+        multi_sel_noWait(driver, on_site)
+        if on_site: buffer(recommended_wait)
+        
+        # Easy Apply toggle (inside All Filters modal)
+        if easy_apply_only:
+            try:
+                # Find the Easy Apply toggle switch
+                toggle = driver.find_element(By.XPATH, '//input[@role="switch" and contains(@id, "Toggle")]//ancestor::div[contains(@class, "artdeco-toggle")]//label[contains(., "Easy Apply")]')
+                toggle.click()
+                buffer(click_gap)
+            except:
+                try:
+                    # Alternative: find by the label text
+                    toggle_label = driver.find_element(By.XPATH, '//span[contains(text(), "Toggle Easy Apply")]//ancestor::div[contains(@class, "artdeco-toggle")]//input[@role="switch"]')
+                    if toggle_label.get_attribute("aria-checked") == "false":
+                        toggle_label.click()
+                        buffer(click_gap)
+                except Exception as e:
+                    print_lg(f"Could not toggle Easy Apply in All Filters: {e}")
+        
+        # Location
+        multi_sel_noWait(driver, location)
+        if location: buffer(recommended_wait)
+        
+        # Industry
+        multi_sel_noWait(driver, industry)
+        if industry: buffer(recommended_wait)
+        
+        # Job function
+        multi_sel_noWait(driver, job_function)
+        if job_function: buffer(recommended_wait)
+        
+        # Job titles
+        multi_sel_noWait(driver, job_titles)
+        if job_titles: buffer(recommended_wait)
+        
+        # Other boolean filters
+        if under_10_applicants: 
+            boolean_button_click(driver, actions, "Under 10 applicants")
+        if in_your_network: 
+            boolean_button_click(driver, actions, "In your network")
+        if fair_chance_employer: 
+            boolean_button_click(driver, actions, "Fair Chance Employer")
+        
+        # Salary
+        if salary:
+            wait_span_click(driver, salary, 2)
+            buffer(recommended_wait)
+        
+        # Benefits
+        multi_sel_noWait(driver, benefits)
+        if benefits: buffer(recommended_wait)
+        
+        # Commitments
+        multi_sel_noWait(driver, commitments)
+        if commitments: buffer(recommended_wait)
+        
+        # Click "Show results" button
+        try:
+            show_results_btn = driver.find_element(By.XPATH, '//button[contains(@class, "artdeco-button") and contains(., "Show") and contains(., "result")]')
+            show_results_btn.click()
+            buffer(2)
+            print_lg("Clicked Show results button")
+        except Exception as e:
+            print_lg(f"Could not find Show results button: {e}")
+            # Try pressing Escape to close modal
+            actions.send_keys(Keys.ESCAPE).perform()
+        
+        return True
+        
+    except Exception as e:
+        print_lg(f"Failed to apply filters via All Filters modal: {e}")
+        # Try to close any open modal
+        try:
+            actions.send_keys(Keys.ESCAPE).perform()
+        except:
+            pass
+        return False
+
+
 def apply_filters() -> None:
+    """Apply search filters using the current LinkedIn UI"""
     set_search_location()
 
     try:
-        recommended_wait = 1 if click_gap < 1 else 0
-
-        wait.until(EC.presence_of_element_located((By.XPATH, '//button[normalize-space()="All filters"]'))).click()
-        buffer(recommended_wait)
-
-        wait_span_click(driver, sort_by)
-        wait_span_click(driver, date_posted)
-        buffer(recommended_wait)
-
-        multi_sel_noWait(driver, experience_level) 
-        multi_sel_noWait(driver, companies, actions)
-        if experience_level or companies: buffer(recommended_wait)
-
-        multi_sel_noWait(driver, job_type)
-        multi_sel_noWait(driver, on_site)
-        if job_type or on_site: buffer(recommended_wait)
-
-        if easy_apply_only: boolean_button_click(driver, actions, "Easy Apply")
+        buffer(2)  # Wait for page to load
         
-        multi_sel_noWait(driver, location)
-        multi_sel_noWait(driver, industry)
-        if location or industry: buffer(recommended_wait)
-
-        multi_sel_noWait(driver, job_function)
-        multi_sel_noWait(driver, job_titles)
-        if job_function or job_titles: buffer(recommended_wait)
-
-        if under_10_applicants: boolean_button_click(driver, actions, "Under 10 applicants")
-        if in_your_network: boolean_button_click(driver, actions, "In your network")
-        if fair_chance_employer: boolean_button_click(driver, actions, "Fair Chance Employer")
-
-        wait_span_click(driver, salary)
-        buffer(recommended_wait)
+        # Step 1: Apply Easy Apply quick filter (if enabled)
+        if easy_apply_only:
+            click_easy_apply_filter()
+            buffer(1)
         
-        multi_sel_noWait(driver, benefits)
-        multi_sel_noWait(driver, commitments)
-        if benefits or commitments: buffer(recommended_wait)
-
-        show_results_button: WebElement = driver.find_element(By.XPATH, '//button[contains(@aria-label, "Apply current filters to show")]')
-        show_results_button.click()
-
+        # Step 2: Apply Date Posted filter
+        if date_posted:
+            click_date_posted_filter(date_posted)
+            buffer(1)
+        
+        # Step 3: Apply advanced filters via All Filters modal (if any are configured)
+        has_advanced_filters = any([
+            sort_by, experience_level, companies, job_type, on_site,
+            location, industry, job_function, job_titles,
+            under_10_applicants, in_your_network, fair_chance_employer,
+            salary, benefits, commitments
+        ])
+        
+        if has_advanced_filters:
+            apply_filters_via_all_filters()
+        
+        buffer(2)  # Wait for results to load
+        
         global pause_after_filters
-        if pause_after_filters and "Turn off Pause after search" == pyautogui.confirm("These are your configured search results and filter. It is safe to change them while this dialog is open, any changes later could result in errors and skipping this search run.", "Please check your results", ["Turn off Pause after search", "Look's good, Continue"]):
-            pause_after_filters = False
+        if pause_after_filters:
+            try:
+                result = pyautogui.confirm(
+                    "These are your configured search results and filters.\n"
+                    "It is safe to change them while this dialog is open.\n"
+                    "Any changes later could result in errors and skipping this search run.",
+                    "Please check your results", 
+                    ["Turn off Pause after search", "Looks good, Continue"]
+                )
+                if result == "Turn off Pause after search":
+                    pause_after_filters = False
+            except Exception as e:
+                print_lg(f"Could not show confirmation dialog: {e}")
+                pause_after_filters = False
 
     except Exception as e:
-        print_lg("Setting the preferences failed!")
+        print_lg(f"Setting the preferences failed! Error: {e}")
+        # Continue anyway - we can still apply to jobs without filters
 
 
 def get_page_info() -> tuple[WebElement | None, int | None]:
@@ -357,38 +599,57 @@ def get_page_info() -> tuple[WebElement | None, int | None]:
 
 
 def get_job_main_details(job: WebElement, blacklisted_companies: set, rejected_jobs: set) -> tuple[str, str, str, str, str, bool]:
-    job_details_button = job.find_element(By.TAG_NAME, 'a') 
-    scroll_to_view(driver, job_details_button, True)
-    job_id = job.get_dom_attribute('data-occludable-job-id')
-    title = job_details_button.text
-    title = title[:title.find("\n")]
-    other_details = job.find_element(By.CLASS_NAME, 'artdeco-entity-lockup__subtitle').text
-    index = other_details.find(' · ')
-    company = other_details[:index]
-    work_location = other_details[index+3:]
-    work_style = work_location[work_location.rfind('(')+1:work_location.rfind(')')]
-    work_location = work_location[:work_location.rfind('(')].strip()
-    
-    skip = False
-    if company in blacklisted_companies:
-        print_lg(f'Skipping "{title} | {company}" job (Blacklisted Company). Job ID: {job_id}!')
-        skip = True
-    elif job_id in rejected_jobs: 
-        print_lg(f'Skipping previously rejected "{title} | {company}" job. Job ID: {job_id}!')
-        skip = True
     try:
-        if job.find_element(By.CLASS_NAME, "job-card-container__footer-job-state").text == "Applied":
+        job_details_button = job.find_element(By.TAG_NAME, 'a') 
+        scroll_to_view(driver, job_details_button, True)
+        job_id = job.get_dom_attribute('data-occludable-job-id')
+        title = job_details_button.text
+        title = title[:title.find("\n")] if "\n" in title else title
+        other_details = job.find_element(By.CLASS_NAME, 'artdeco-entity-lockup__subtitle').text
+        index = other_details.find(' · ')
+        if index == -1:
+            # Fallback if format is different
+            company = other_details.split('\n')[0] if '\n' in other_details else other_details
+            work_location = ""
+            work_style = ""
+        else:
+            company = other_details[:index]
+            work_location = other_details[index+3:]
+            work_style = work_location[work_location.rfind('(')+1:work_location.rfind(')')]
+            work_location = work_location[:work_location.rfind('(')].strip() if '(' in work_location else work_location
+        
+        skip = False
+        if company in blacklisted_companies:
+            print_lg(f'Skipping "{title} | {company}" job (Blacklisted Company). Job ID: {job_id}!')
             skip = True
-            print_lg(f'Already applied to "{title} | {company}" job. Job ID: {job_id}!')
-    except: pass
-    try: 
-        if not skip: job_details_button.click()
+        elif job_id in rejected_jobs: 
+            print_lg(f'Skipping previously rejected "{title} | {company}" job. Job ID: {job_id}!')
+            skip = True
+        try:
+            if job.find_element(By.CLASS_NAME, "job-card-container__footer-job-state").text == "Applied":
+                skip = True
+                print_lg(f'Already applied to "{title} | {company}" job. Job ID: {job_id}!')
+        except: pass
+        
+        if not skip:
+            try: 
+                job_details_button.click()
+            except Exception as e:
+                print_lg(f'Failed to click "{title} | {company}" job on details button. Job ID: {job_id}!') 
+                try:
+                    discard_job()
+                    job_details_button.click()
+                except Exception as e2:
+                    print_lg(f'Retry click also failed, skipping this job. Error: {e2}')
+                    skip = True
+        
+        buffer(click_gap)
+        return (job_id, title, company, work_location, work_style, skip)
+        
     except Exception as e:
-        print_lg(f'Failed to click "{title} | {company}" job on details button. Job ID: {job_id}!') 
-        discard_job()
-        job_details_button.click() 
-    buffer(click_gap)
-    return (job_id,title,company,work_location,work_style,skip)
+        # Handle stale element or any other error - skip this job and continue
+        print_lg(f'Error getting job details (possibly stale element), skipping job. Error: {e}')
+        return ("unknown", "Unknown", "Unknown", "", "", True)
 
 
 def check_blacklist(rejected_jobs: set, job_id: str, company: str, blacklisted_companies: set) -> tuple[set, set, WebElement] | ValueError:
@@ -867,13 +1128,17 @@ def apply_to_jobs(search_terms: list[str]) -> None:
 
             
                 for job in job_listings:
-                    if keep_screen_awake: pyautogui.press('shiftright')
-                    if current_count >= switch_number: break
-                    print_lg("\n-@-\n")
+                    try:
+                        if keep_screen_awake: pyautogui.press('shiftright')
+                        if current_count >= switch_number: break
+                        print_lg("\n-@-\n")
 
-                    job_id,title,company,work_location,work_style,skip = get_job_main_details(job, blacklisted_companies, rejected_jobs)
-                    
-                    if skip: continue
+                        job_id,title,company,work_location,work_style,skip = get_job_main_details(job, blacklisted_companies, rejected_jobs)
+                        
+                        if skip: continue
+                    except Exception as job_error:
+                        print_lg(f"Error processing job listing, skipping to next: {job_error}")
+                        continue
                     try:
                         if job_id in applied_jobs or find_by_class(driver, "jobs-s-apply__application-link", 2):
                             print_lg(f'Already applied to "{title} | {company}" job. Job ID: {job_id}!')
@@ -1036,9 +1301,21 @@ def apply_to_jobs(search_terms: list[str]) -> None:
                     print_lg(f"\n>-> Didn't find Page {current_page+1}. Probably at the end page of results!\n")
                     break
 
-        except (NoSuchWindowException, WebDriverException) as e:
-            print_lg("Browser window closed or session is invalid. Ending application process.", e)
-            raise e 
+        except NoSuchWindowException as e:
+            print_lg("Browser window closed. Ending application process.", e)
+            raise e
+        except WebDriverException as e:
+            # Check if it's a stale element or similar recoverable error
+            error_msg = str(e).lower()
+            if 'stale element' in error_msg or 'element not found' in error_msg:
+                print_lg(f"Encountered a stale element error, moving to next search term. Error: {e}")
+                continue  # Try next search term instead of crashing
+            elif 'session' in error_msg or 'disconnected' in error_msg or 'not reachable' in error_msg:
+                print_lg("Browser session is invalid. Ending application process.", e)
+                raise e
+            else:
+                print_lg(f"WebDriver error occurred: {e}")
+                continue  # Try next search term
         except Exception as e:
             print_lg("Failed to find Job listings!")
             critical_error_log("In Applier", e)
@@ -1046,6 +1323,8 @@ def apply_to_jobs(search_terms: list[str]) -> None:
                 print_lg(driver.page_source, pretty=True)
             except Exception as page_source_error:
                 print_lg(f"Failed to get page source, browser might have crashed. {page_source_error}")
+            # Continue to next search term instead of crashing
+            continue
 
         
 def run(total_runs: int) -> int:
