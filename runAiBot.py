@@ -314,48 +314,115 @@ def click_date_posted_filter(date_option: str) -> bool:
         return True
         
     try:
-        # Click the Date posted dropdown
-        date_btn = driver.find_element(By.ID, "searchFilter_timePostedRange")
+        # Click the Date posted dropdown button
+        try:
+            date_btn = driver.find_element(By.ID, "searchFilter_timePostedRange")
+        except:
+            # Fallback: find by text
+            date_btn = driver.find_element(By.XPATH, '//button[contains(., "Date posted")]')
+        
         date_btn.click()
         buffer(1)
         
-        # Map common date options to possible label texts
+        # Map config values to exact LinkedIn label texts
         date_mappings = {
-            "Past 24 hours": ["Past 24 hours", "past 24 hours", "24 hours"],
-            "Past week": ["Past week", "past week", "week"],
-            "Past month": ["Past month", "past month", "month"],
-            "Any time": ["Any time", "any time", "Any"],
+            "Past 24 hours": "Past 24 hours",
+            "Past week": "Past week", 
+            "Past month": "Past month",
+            "Any time": "Any time",
+            # Also support lowercase/variations from config
+            "past 24 hours": "Past 24 hours",
+            "past week": "Past week",
+            "past month": "Past month",
+            "any time": "Any time",
         }
         
-        # Find the matching option
-        possible_texts = date_mappings.get(date_option, [date_option])
+        target_text = date_mappings.get(date_option, date_option)
         
-        for text in possible_texts:
+        # Method 1: Click the label directly (new LinkedIn UI)
+        try:
+            label = driver.find_element(By.XPATH, f'//label[contains(@class, "search-reusables__value-label")]//span[contains(text(), "{target_text}")]//ancestor::label')
+            scroll_to_view(driver, label)
+            label.click()
+            buffer(click_gap)
+            print_lg(f"Selected date filter: {target_text}")
+            
+            # Click "Show results" button in the dropdown
             try:
-                # Try to find by label text
-                option = driver.find_element(By.XPATH, f'//label[contains(., "{text}")]')
-                option.click()
-                buffer(click_gap)
-                print_lg(f"Selected date filter: {text}")
-                return True
+                show_btn = driver.find_element(By.XPATH, '//button[contains(@class, "artdeco-button--primary") and contains(., "Show")]')
+                show_btn.click()
+                buffer(1)
             except:
+                # Try pressing Enter or clicking elsewhere
+                actions.send_keys(Keys.ENTER).perform()
+            
+            return True
+        except:
+            pass
+        
+        # Method 2: Find by span text and click its parent
+        try:
+            span = driver.find_element(By.XPATH, f'//span[contains(@class, "t-14") and contains(text(), "{target_text}")]')
+            parent_label = span.find_element(By.XPATH, './ancestor::label')
+            scroll_to_view(driver, parent_label)
+            parent_label.click()
+            buffer(click_gap)
+            print_lg(f"Selected date filter (method 2): {target_text}")
+            
+            # Click "Show results" button
+            try:
+                show_btn = driver.find_element(By.XPATH, '//button[contains(., "Show results") or contains(., "Show")]')
+                show_btn.click()
+                buffer(1)
+            except:
+                actions.send_keys(Keys.ENTER).perform()
+            
+            return True
+        except:
+            pass
+        
+        # Method 3: Find radio input by partial ID and click
+        try:
+            # timePostedRange IDs use seconds: r86400 (24h), r604800 (week), r2592000 (month)
+            time_to_seconds = {
+                "Past 24 hours": "86400",
+                "Past week": "604800",
+                "Past month": "2592000",
+            }
+            if target_text in time_to_seconds:
+                radio = driver.find_element(By.XPATH, f'//input[contains(@id, "timePostedRange") and contains(@id, "{time_to_seconds[target_text]}")]')
+                scroll_to_view(driver, radio)
+                radio.click()
+                buffer(click_gap)
+                print_lg(f"Selected date filter (method 3): {target_text}")
+                
+                # Click "Show results"
                 try:
-                    # Try span
-                    option = driver.find_element(By.XPATH, f'//span[contains(text(), "{text}")]')
-                    option.click()
-                    buffer(click_gap)
-                    print_lg(f"Selected date filter: {text}")
-                    return True
+                    show_btn = driver.find_element(By.XPATH, '//button[contains(., "Show")]')
+                    show_btn.click()
+                    buffer(1)
                 except:
-                    continue
+                    pass
+                
+                return True
+        except:
+            pass
         
         print_lg(f"Could not find date option: {date_option}")
-        # Click elsewhere to close dropdown
-        actions.send_keys(Keys.ESCAPE).perform()
+        # Click Cancel or elsewhere to close dropdown
+        try:
+            cancel_btn = driver.find_element(By.XPATH, '//button[contains(., "Cancel") or contains(., "Reset")]')
+            cancel_btn.click()
+        except:
+            actions.send_keys(Keys.ESCAPE).perform()
         return False
         
     except Exception as e:
         print_lg(f"Could not set date posted filter: {e}")
+        try:
+            actions.send_keys(Keys.ESCAPE).perform()
+        except:
+            pass
         return False
 
 
