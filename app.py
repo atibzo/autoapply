@@ -184,17 +184,56 @@ def start_bot():
             error_output = stderr or stdout or "Unknown error - bot exited immediately"
             return jsonify({
                 "error": "Bot failed to start",
-                "details": [error_output[:1000]],  # Limit error length
+                "details": [error_output[:2000]],  # Limit error length
                 "status": "error"
             }), 500
         
         return jsonify({"message": "Bot started successfully", "pid": bot_process.pid, "status": "running"}), 200
     except Exception as e:
+        import traceback
         return jsonify({
             "error": "Failed to start bot",
-            "details": [str(e)],
+            "details": [str(e), traceback.format_exc()[:1000]],
             "status": "error"
         }), 500
+
+
+@app.route('/api/bot/logs', methods=['GET'])
+def get_bot_logs():
+    """Get the bot's log file contents"""
+    try:
+        log_path = "logs/log.txt"
+        if os.path.exists(log_path):
+            with open(log_path, 'r', encoding='utf-8') as f:
+                # Get last 100 lines
+                lines = f.readlines()
+                last_lines = lines[-100:] if len(lines) > 100 else lines
+                return jsonify({"logs": "".join(last_lines)})
+        return jsonify({"logs": "No logs yet"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/bot/output', methods=['GET'])
+def get_bot_output():
+    """Get real-time output from the bot process"""
+    global bot_process
+    output = {"stdout": "", "stderr": "", "running": False}
+    
+    if bot_process:
+        output["running"] = bot_process.poll() is None
+        
+        if bot_process.poll() is not None:
+            # Process has ended, get all output
+            try:
+                stdout, stderr = bot_process.communicate(timeout=1)
+                output["stdout"] = stdout[-2000:] if stdout else ""
+                output["stderr"] = stderr[-2000:] if stderr else ""
+                output["exit_code"] = bot_process.returncode
+            except:
+                pass
+    
+    return jsonify(output)
 
 @app.route('/api/bot/stop', methods=['POST'])
 def stop_bot():

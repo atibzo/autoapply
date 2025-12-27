@@ -96,6 +96,19 @@
                 </div>
             </div>
 
+            <!-- Bot Logs Section -->
+            <div id="logSection" style="display: none; margin-bottom: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h3>📋 Bot Logs</h3>
+                    <button class="btn" onclick="toggleLogs()" style="background: #6b7280; color: white;">Hide Logs</button>
+                </div>
+                <pre id="logOutput" style="background: #1e1e1e; color: #00ff00; padding: 15px; border-radius: 8px; max-height: 300px; overflow-y: auto; font-family: monospace; font-size: 12px; white-space: pre-wrap;"></pre>
+            </div>
+            
+            <div style="margin-bottom: 15px;">
+                <button class="btn" onclick="showLogs()" style="background: #6b7280; color: white;">📋 Show Logs</button>
+            </div>
+
             <h2>Applied Jobs History</h2>
             <table id="jobsTable">
                 <thead>
@@ -513,12 +526,71 @@
             }
         }
 
+        // --- Logs ---
+        let logsVisible = false;
+        let logInterval = null;
+        
+        function showLogs() {
+            document.getElementById('logSection').style.display = 'block';
+            logsVisible = true;
+            fetchLogs();
+            if (!logInterval) {
+                logInterval = setInterval(fetchLogs, 2000);
+            }
+        }
+        
+        function toggleLogs() {
+            document.getElementById('logSection').style.display = 'none';
+            logsVisible = false;
+            if (logInterval) {
+                clearInterval(logInterval);
+                logInterval = null;
+            }
+        }
+        
+        async function fetchLogs() {
+            try {
+                const res = await fetch('/api/bot/logs');
+                const data = await res.json();
+                const logOutput = document.getElementById('logOutput');
+                if (data.logs) {
+                    logOutput.textContent = data.logs;
+                    logOutput.scrollTop = logOutput.scrollHeight;
+                }
+            } catch (e) {
+                console.error('Failed to fetch logs:', e);
+            }
+        }
+
         // --- Polling ---
+        let wasRunning = false;
+        
         setInterval(async () => {
             try {
                 const res = await fetch('/api/bot/status');
                 const data = await res.json();
-                updateBotStatus(data.status === 'running');
+                const isRunning = data.status === 'running';
+                updateBotStatus(isRunning);
+                
+                // Check if bot just crashed
+                if (wasRunning && !isRunning) {
+                    // Bot stopped - check for errors
+                    const outputRes = await fetch('/api/bot/output');
+                    const outputData = await outputRes.json();
+                    
+                    if (outputData.stderr || outputData.exit_code !== 0) {
+                        showError({
+                            error: "Bot stopped unexpectedly",
+                            details: [
+                                outputData.stderr || "Check logs for details",
+                                `Exit code: ${outputData.exit_code || 'unknown'}`
+                            ],
+                            suggestion: "Click 'Show Logs' to see what happened"
+                        });
+                        showLogs();
+                    }
+                }
+                wasRunning = isRunning;
 
                 if (data.interaction && data.interaction.status === 'waiting') {
                     const modal = document.getElementById('interactionModal');
@@ -531,7 +603,7 @@
             } catch (e) {
                 // console.error(e);
             }
-        }, 3000);
+        }, 2000);
 
         // --- Dashboard Data Loading ---
         // (Reusing existing table logic, just simplified call)
