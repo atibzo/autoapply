@@ -15,6 +15,7 @@ const defaultSettings = {
   yearsExperience: 5,
   phoneNumber: '',
   linkedinUrl: '',
+  websiteUrl: '',
   // AI Settings
   useAI: true,
   openaiApiKey: '',
@@ -102,6 +103,7 @@ async function loadSettings() {
   document.getElementById('yearsExperience').value = settings.yearsExperience || 5;
   document.getElementById('phoneNumber').value = settings.phoneNumber || '';
   document.getElementById('linkedinUrl').value = settings.linkedinUrl || '';
+  document.getElementById('websiteUrl').value = settings.websiteUrl || '';
   
   // AI tab
   document.getElementById('useAI').checked = settings.useAI !== false;
@@ -135,6 +137,7 @@ async function saveSettings() {
     yearsExperience: parseInt(document.getElementById('yearsExperience').value) || 5,
     phoneNumber: document.getElementById('phoneNumber').value,
     linkedinUrl: document.getElementById('linkedinUrl').value,
+    websiteUrl: document.getElementById('websiteUrl').value,
     
     // AI tab
     useAI: document.getElementById('useAI').checked,

@@ -501,6 +501,11 @@ function getPredefinedAnswer(labelLower) {
     return settings.linkedinUrl || null;
   }
   
+  // Website / Portfolio
+  if (labelLower.includes('website') || labelLower.includes('portfolio') || labelLower.includes('personal site') || labelLower.includes('github')) {
+    return settings.websiteUrl || null;
+  }
+  
   // Years of experience
   if (labelLower.includes('experience') && labelLower.includes('year')) {
     return settings.yearsExperience?.toString() || '5';

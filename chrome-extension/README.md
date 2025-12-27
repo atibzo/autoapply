@@ -78,6 +78,7 @@ A Chrome extension that automatically applies to LinkedIn Easy Apply jobs with A
 - **Years of Experience**: For form filling
 - **Phone Number**: For form filling
 - **LinkedIn URL**: For form filling
+- **Website / Portfolio**: For form filling (also used for GitHub, personal site questions)
 
 ### AI Settings (🤖 AI Tab)
 
