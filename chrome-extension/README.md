@@ -1,15 +1,18 @@
 # LinkedIn Auto Apply - Chrome Extension
 
-A Chrome extension that automatically applies to LinkedIn Easy Apply jobs.
+A Chrome extension that automatically applies to LinkedIn Easy Apply jobs with AI-powered features.
 
 ## Features
 
 - 🚀 One-click automation
+- 🤖 **AI-powered question answering** (uses OpenAI GPT)
+- ✍️ **Smart cover letter generation** based on your resume and job description
 - ⚙️ Configurable search filters
 - 🔍 Smart job filtering (skip by keywords, companies)
 - 📊 Real-time statistics
 - 📋 Activity logging
-- 🎯 Form auto-fill
+- 🎯 Intelligent form auto-fill
+- ⏸️ **Pause & ask for input** when AI can't answer
 
 ## Installation
 
@@ -76,6 +79,34 @@ A Chrome extension that automatically applies to LinkedIn Easy Apply jobs.
 - **Phone Number**: For form filling
 - **LinkedIn URL**: For form filling
 
+### AI Settings (🤖 AI Tab)
+
+#### OpenAI Configuration
+- **Enable AI-powered answers**: Toggle AI features on/off
+- **API Key**: Your OpenAI API key (get from [platform.openai.com/api-keys](https://platform.openai.com/api-keys))
+- **Model**: Choose the AI model
+  - GPT-4o Mini: Fast and cheap (recommended)
+  - GPT-4o: Best quality
+  - GPT-4 Turbo: High quality
+  - GPT-3.5 Turbo: Fastest
+
+#### Your Resume/CV
+- **Paste your resume text**: The AI uses this to answer questions accurately and generate personalized cover letters
+
+#### Cover Letter Settings
+- **Generate cover letters with AI**: Auto-generate cover letters for each job
+- **Cover Letter Style**:
+  - Professional: Formal business tone
+  - Friendly: Conversational but professional
+  - Concise: Short and to the point
+  - Detailed: Comprehensive coverage
+- **Additional instructions**: Custom guidance for the AI (e.g., "Emphasize my leadership skills")
+
+#### Interaction Mode
+- **Pause for questions AI can't answer**: Shows a dialog for questions requiring your input
+- **Review cover letters before submitting**: Preview and edit generated cover letters
+- **Show AI reasoning in logs**: See detailed AI thinking in the Logs tab
+
 ## Tips
 
 1. **Login first**: Make sure you're logged into LinkedIn
@@ -99,13 +130,26 @@ A Chrome extension that automatically applies to LinkedIn Easy Apply jobs.
 - Some custom questions can't be auto-filled
 - Consider enabling "Pause before submit"
 
+### AI not working?
+- Verify your OpenAI API key is correct
+- Check that you have API credits in your OpenAI account
+- Make sure "Enable AI-powered answers" is checked
+- Check the Logs tab for error messages
+
+### Cover letters not generating?
+- Ensure "Generate cover letters with AI" is enabled
+- Paste your resume in the AI tab
+- Check you have sufficient OpenAI API credits
+
 ## Privacy
 
 This extension:
 - Only runs on LinkedIn.com
 - Stores settings locally in your browser
-- Does NOT send data to any external servers
 - Does NOT access your LinkedIn password
+- Your OpenAI API key is stored locally (never shared)
+- **When AI features are enabled**: Job descriptions and your resume are sent to OpenAI to generate answers and cover letters
+- OpenAI's privacy policy applies to AI-processed data
 
 ## License
 

@@ -14,7 +14,18 @@ const defaultSettings = {
   maxExperience: 10,
   yearsExperience: 5,
   phoneNumber: '',
-  linkedinUrl: ''
+  linkedinUrl: '',
+  // AI Settings
+  useAI: true,
+  openaiApiKey: '',
+  aiModel: 'gpt-4o-mini',
+  resumeText: '',
+  generateCoverLetter: true,
+  coverLetterStyle: 'professional',
+  aiInstructions: '',
+  pauseForUnknown: true,
+  pauseForCoverLetter: false,
+  showAIThinking: false
 };
 
 // Stats
@@ -75,7 +86,7 @@ async function loadSettings() {
   const result = await chrome.storage.local.get('settings');
   const settings = result.settings || defaultSettings;
   
-  // Populate form fields
+  // Populate form fields - Settings tab
   document.getElementById('searchKeywords').value = settings.searchKeywords || '';
   document.getElementById('searchLocation').value = settings.searchLocation || '';
   document.getElementById('datePosted').value = settings.datePosted || 'week';
@@ -83,17 +94,32 @@ async function loadSettings() {
   document.getElementById('pauseBeforeSubmit').checked = settings.pauseBeforeSubmit === true;
   document.getElementById('maxApplications').value = settings.maxApplications || 50;
   document.getElementById('delayBetween').value = settings.delayBetween || 3;
+  
+  // Filters tab
   document.getElementById('badWords').value = settings.badWords || '';
   document.getElementById('badCompanies').value = settings.badCompanies || '';
   document.getElementById('maxExperience').value = settings.maxExperience || 10;
   document.getElementById('yearsExperience').value = settings.yearsExperience || 5;
   document.getElementById('phoneNumber').value = settings.phoneNumber || '';
   document.getElementById('linkedinUrl').value = settings.linkedinUrl || '';
+  
+  // AI tab
+  document.getElementById('useAI').checked = settings.useAI !== false;
+  document.getElementById('openaiApiKey').value = settings.openaiApiKey || '';
+  document.getElementById('aiModel').value = settings.aiModel || 'gpt-4o-mini';
+  document.getElementById('resumeText').value = settings.resumeText || '';
+  document.getElementById('generateCoverLetter').checked = settings.generateCoverLetter !== false;
+  document.getElementById('coverLetterStyle').value = settings.coverLetterStyle || 'professional';
+  document.getElementById('aiInstructions').value = settings.aiInstructions || '';
+  document.getElementById('pauseForUnknown').checked = settings.pauseForUnknown !== false;
+  document.getElementById('pauseForCoverLetter').checked = settings.pauseForCoverLetter === true;
+  document.getElementById('showAIThinking').checked = settings.showAIThinking === true;
 }
 
 // Save settings to storage
 async function saveSettings() {
   const settings = {
+    // Settings tab
     searchKeywords: document.getElementById('searchKeywords').value,
     searchLocation: document.getElementById('searchLocation').value,
     datePosted: document.getElementById('datePosted').value,
@@ -101,16 +127,42 @@ async function saveSettings() {
     pauseBeforeSubmit: document.getElementById('pauseBeforeSubmit').checked,
     maxApplications: parseInt(document.getElementById('maxApplications').value) || 50,
     delayBetween: parseInt(document.getElementById('delayBetween').value) || 3,
+    
+    // Filters tab
     badWords: document.getElementById('badWords').value,
     badCompanies: document.getElementById('badCompanies').value,
     maxExperience: parseInt(document.getElementById('maxExperience').value) || 10,
     yearsExperience: parseInt(document.getElementById('yearsExperience').value) || 5,
     phoneNumber: document.getElementById('phoneNumber').value,
-    linkedinUrl: document.getElementById('linkedinUrl').value
+    linkedinUrl: document.getElementById('linkedinUrl').value,
+    
+    // AI tab
+    useAI: document.getElementById('useAI').checked,
+    openaiApiKey: document.getElementById('openaiApiKey').value,
+    aiModel: document.getElementById('aiModel').value,
+    resumeText: document.getElementById('resumeText').value,
+    generateCoverLetter: document.getElementById('generateCoverLetter').checked,
+    coverLetterStyle: document.getElementById('coverLetterStyle').value,
+    aiInstructions: document.getElementById('aiInstructions').value,
+    pauseForUnknown: document.getElementById('pauseForUnknown').checked,
+    pauseForCoverLetter: document.getElementById('pauseForCoverLetter').checked,
+    showAIThinking: document.getElementById('showAIThinking').checked
   };
   
   await chrome.storage.local.set({ settings });
   addLog('✓ Settings saved');
+  
+  // Validate API key if AI is enabled
+  if (settings.useAI && settings.openaiApiKey) {
+    addLog('🔑 Testing OpenAI connection...');
+    chrome.runtime.sendMessage({ action: 'testOpenAI', apiKey: settings.openaiApiKey }, (response) => {
+      if (response?.success) {
+        addLog('✓ OpenAI connection successful');
+      } else {
+        addLog('⚠️ OpenAI test failed: ' + (response?.error || 'Unknown error'));
+      }
+    });
+  }
   
   // Notify background script
   chrome.runtime.sendMessage({ action: 'settingsUpdated', settings });
@@ -146,8 +198,16 @@ async function getBotState() {
 // Update UI based on bot state
 function updateUI() {
   if (botState.isRunning) {
-    elements.statusIndicator.className = 'status-indicator running';
-    elements.statusText.textContent = botState.isPaused ? 'Paused' : 'Running...';
+    if (botState.waitingForInput) {
+      elements.statusIndicator.className = 'status-indicator waiting';
+      elements.statusText.textContent = '⏸️ Waiting for input...';
+    } else if (botState.isPaused) {
+      elements.statusIndicator.className = 'status-indicator paused';
+      elements.statusText.textContent = 'Paused';
+    } else {
+      elements.statusIndicator.className = 'status-indicator running';
+      elements.statusText.textContent = 'Running...';
+    }
     elements.startBtn.disabled = true;
     elements.stopBtn.disabled = false;
   } else {

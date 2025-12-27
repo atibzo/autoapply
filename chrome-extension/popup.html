@@ -45,6 +45,7 @@
     .status-indicator.stopped { background: #ff6b6b; }
     .status-indicator.running { background: #51cf66; animation: pulse 1.5s infinite; }
     .status-indicator.paused { background: #ffd43b; }
+    .status-indicator.waiting { background: #ff922b; animation: pulse 0.8s infinite; }
     
     @keyframes pulse {
       0%, 100% { opacity: 1; }
@@ -267,6 +268,7 @@
     
     <div class="tabs">
       <div class="tab active" data-tab="settings">⚙️ Settings</div>
+      <div class="tab" data-tab="ai">🤖 AI</div>
       <div class="tab" data-tab="filters">🔍 Filters</div>
       <div class="tab" data-tab="logs">📋 Logs</div>
     </div>
@@ -315,6 +317,76 @@
       </div>
     </div>
     
+    <!-- AI Tab -->
+    <div id="ai" class="tab-content">
+      <div class="section">
+        <h3>🤖 OpenAI Configuration</h3>
+        <div class="form-group checkbox-group">
+          <input type="checkbox" id="useAI" checked>
+          <label for="useAI">Enable AI-powered answers</label>
+        </div>
+        <div class="form-group">
+          <label>API Key</label>
+          <input type="password" id="openaiApiKey" placeholder="sk-...">
+          <small style="color: #666; font-size: 11px;">Get from: platform.openai.com/api-keys</small>
+        </div>
+        <div class="form-group">
+          <label>Model</label>
+          <select id="aiModel">
+            <option value="gpt-4o-mini">GPT-4o Mini (Fast & Cheap)</option>
+            <option value="gpt-4o">GPT-4o (Best Quality)</option>
+            <option value="gpt-4-turbo">GPT-4 Turbo</option>
+            <option value="gpt-3.5-turbo">GPT-3.5 Turbo (Fastest)</option>
+          </select>
+        </div>
+      </div>
+      
+      <div class="section">
+        <h3>📄 Your Resume/CV</h3>
+        <div class="form-group">
+          <label>Paste your resume/CV text (for AI context)</label>
+          <textarea id="resumeText" style="height: 150px;" placeholder="Paste your resume content here. The AI will use this to answer questions and write cover letters."></textarea>
+        </div>
+      </div>
+      
+      <div class="section">
+        <h3>✍️ Cover Letter Settings</h3>
+        <div class="form-group checkbox-group">
+          <input type="checkbox" id="generateCoverLetter" checked>
+          <label for="generateCoverLetter">Generate cover letters with AI</label>
+        </div>
+        <div class="form-group">
+          <label>Cover Letter Style</label>
+          <select id="coverLetterStyle">
+            <option value="professional">Professional</option>
+            <option value="friendly">Friendly & Conversational</option>
+            <option value="concise">Short & Concise</option>
+            <option value="detailed">Detailed & Comprehensive</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Additional instructions for AI</label>
+          <textarea id="aiInstructions" placeholder="e.g., Emphasize my leadership skills, mention my startup experience..."></textarea>
+        </div>
+      </div>
+      
+      <div class="section">
+        <h3>⏸️ Interaction Mode</h3>
+        <div class="form-group checkbox-group">
+          <input type="checkbox" id="pauseForUnknown" checked>
+          <label for="pauseForUnknown">Pause for questions AI can't answer</label>
+        </div>
+        <div class="form-group checkbox-group">
+          <input type="checkbox" id="pauseForCoverLetter">
+          <label for="pauseForCoverLetter">Review cover letters before submitting</label>
+        </div>
+        <div class="form-group checkbox-group">
+          <input type="checkbox" id="showAIThinking">
+          <label for="showAIThinking">Show AI reasoning in logs</label>
+        </div>
+      </div>
+    </div>
+
     <!-- Filters Tab -->
     <div id="filters" class="tab-content">
       <div class="section">

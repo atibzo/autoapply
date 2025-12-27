@@ -1,10 +1,15 @@
 // LinkedIn Auto Apply - Background Service Worker
 
+// Import AI Service
+importScripts('ai-service.js');
+
 // Bot state
 let state = {
   isRunning: false,
   isPaused: false,
-  currentTabId: null
+  currentTabId: null,
+  waitingForInput: false,
+  pendingQuestion: null
 };
 
 // Stats
@@ -17,92 +22,229 @@ let stats = {
 // Settings (loaded from storage)
 let settings = {};
 
+// AI Service instance
+let aiService = null;
+
+// Initialize AI service
+function initAIService() {
+  if (settings.openaiApiKey) {
+    aiService = new AIService(settings.openaiApiKey, settings.aiModel || 'gpt-4o-mini');
+    log('🤖 AI Service initialized');
+  }
+}
+
 // Load settings on startup
 chrome.storage.local.get(['settings', 'stats'], (result) => {
-  if (result.settings) settings = result.settings;
+  if (result.settings) {
+    settings = result.settings;
+    initAIService();
+  }
   if (result.stats) stats = result.stats;
 });
 
 // Listen for messages from popup and content scripts
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // Handle async operations
+  handleMessage(message, sender).then(sendResponse);
+  return true; // Keep message channel open for async response
+});
+
+async function handleMessage(message, sender) {
   switch (message.action) {
     case 'start':
       startBot();
-      sendResponse({ success: true });
-      break;
+      return { success: true };
       
     case 'stop':
       stopBot();
-      sendResponse({ success: true });
-      break;
+      return { success: true };
       
     case 'pause':
       state.isPaused = true;
       broadcastState();
-      sendResponse({ success: true });
-      break;
+      return { success: true };
       
     case 'resume':
       state.isPaused = false;
+      state.waitingForInput = false;
       broadcastState();
-      sendResponse({ success: true });
-      break;
+      return { success: true };
       
     case 'getState':
-      sendResponse(state);
-      break;
+      return state;
       
     case 'getSettings':
-      sendResponse(settings);
-      break;
+      return settings;
       
     case 'settingsUpdated':
       settings = message.settings;
-      sendResponse({ success: true });
-      break;
+      initAIService();
+      return { success: true };
       
     case 'jobApplied':
       stats.applied++;
       saveStats();
       broadcastStats();
       log(`✅ Applied to: ${message.jobTitle} at ${message.company}`);
-      sendResponse({ success: true });
-      break;
+      return { success: true };
       
     case 'jobSkipped':
       stats.skipped++;
       saveStats();
       broadcastStats();
       log(`⏭️ Skipped: ${message.jobTitle} - ${message.reason}`);
-      sendResponse({ success: true });
-      break;
+      return { success: true };
       
     case 'jobFailed':
       stats.failed++;
       saveStats();
       broadcastStats();
       log(`❌ Failed: ${message.jobTitle} - ${message.reason}`);
-      sendResponse({ success: true });
-      break;
+      return { success: true };
       
     case 'log':
       log(message.text);
-      sendResponse({ success: true });
-      break;
+      return { success: true };
       
     case 'contentScriptReady':
-      // Content script loaded, send settings
       chrome.tabs.sendMessage(sender.tab.id, { 
         action: 'init', 
         settings: settings,
         state: state
       });
-      sendResponse({ success: true });
-      break;
+      return { success: true };
+    
+    // AI-related actions
+    case 'testOpenAI':
+      return await testOpenAIConnection(message.apiKey);
+      
+    case 'answerQuestion':
+      return await answerQuestionWithAI(message);
+      
+    case 'generateCoverLetter':
+      return await generateCoverLetterWithAI(message);
+      
+    case 'analyzeJob':
+      return await analyzeJobWithAI(message);
+      
+    case 'provideUserInput':
+      // User provided input for a question AI couldn't answer
+      state.waitingForInput = false;
+      state.pendingQuestion = null;
+      broadcastState();
+      return { success: true, answer: message.answer };
+      
+    case 'needUserInput':
+      // Content script needs user input
+      state.waitingForInput = true;
+      state.pendingQuestion = message.question;
+      broadcastState();
+      log(`⏸️ Need input: ${message.question}`);
+      // Show notification
+      notify('Input Needed', message.question);
+      return { success: true };
+      
+    default:
+      return { success: false, error: 'Unknown action' };
+  }
+}
+
+// Test OpenAI connection
+async function testOpenAIConnection(apiKey) {
+  try {
+    const testService = new AIService(apiKey);
+    const success = await testService.testConnection();
+    return { success, error: success ? null : 'Connection failed' };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+// Answer question using AI
+async function answerQuestionWithAI(message) {
+  if (!settings.useAI || !aiService) {
+    return { success: false, error: 'AI not enabled', needInput: true };
   }
   
-  return true; // Keep message channel open for async response
-});
+  try {
+    const answer = await aiService.answerQuestion(message.question, {
+      jobDescription: message.jobDescription || '',
+      resumeText: settings.resumeText || '',
+      questionType: message.questionType || 'text',
+      selectOptions: message.options || [],
+      additionalInstructions: settings.aiInstructions || ''
+    });
+    
+    // Check if AI couldn't answer
+    if (answer.startsWith('NEED_INPUT:')) {
+      const reason = answer.replace('NEED_INPUT:', '').trim();
+      log(`🤔 AI needs help: ${reason}`);
+      return { success: false, needInput: true, reason };
+    }
+    
+    if (settings.showAIThinking) {
+      log(`🤖 AI answered "${message.question.substring(0, 50)}..." → "${answer.substring(0, 50)}..."`);
+    }
+    
+    return { success: true, answer };
+  } catch (error) {
+    log(`❌ AI error: ${error.message}`);
+    return { success: false, error: error.message, needInput: true };
+  }
+}
+
+// Generate cover letter using AI
+async function generateCoverLetterWithAI(message) {
+  if (!settings.useAI || !aiService) {
+    return { success: false, error: 'AI not enabled' };
+  }
+  
+  if (!settings.generateCoverLetter) {
+    return { success: false, error: 'Cover letter generation disabled' };
+  }
+  
+  try {
+    log(`✍️ Generating cover letter for ${message.jobTitle} at ${message.company}...`);
+    
+    const coverLetter = await aiService.generateCoverLetter({
+      jobTitle: message.jobTitle,
+      company: message.company,
+      jobDescription: message.jobDescription,
+      resumeText: settings.resumeText || '',
+      style: settings.coverLetterStyle || 'professional',
+      additionalInstructions: settings.aiInstructions || ''
+    });
+    
+    log(`✓ Cover letter generated (${coverLetter.length} chars)`);
+    
+    return { success: true, coverLetter };
+  } catch (error) {
+    log(`❌ Cover letter error: ${error.message}`);
+    return { success: false, error: error.message };
+  }
+}
+
+// Analyze job description using AI
+async function analyzeJobWithAI(message) {
+  if (!settings.useAI || !aiService) {
+    return { success: false, error: 'AI not enabled' };
+  }
+  
+  try {
+    const analysis = await aiService.analyzeJobDescription(
+      message.jobDescription,
+      settings.resumeText || ''
+    );
+    
+    if (analysis && settings.showAIThinking) {
+      log(`📊 Job match score: ${analysis.matchScore}%`);
+    }
+    
+    return { success: true, analysis };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
 
 // Start the bot
 async function startBot() {
