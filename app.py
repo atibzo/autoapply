@@ -41,6 +41,51 @@ def set_interaction_response(response_text):
         return True
     return False
 
+# --- Helper Functions ---
+
+def find_chrome():
+    """Find Chrome browser installation"""
+    import shutil
+    
+    # Check PATH first
+    chrome_path = shutil.which('google-chrome') or shutil.which('chromium-browser') or shutil.which('chromium') or shutil.which('chrome')
+    if chrome_path:
+        return chrome_path
+    
+    # Check common installation paths
+    common_paths = []
+    
+    if sys.platform == 'win32':
+        # Windows paths
+        common_paths = [
+            os.path.expandvars(r'%ProgramFiles%\Google\Chrome\Application\chrome.exe'),
+            os.path.expandvars(r'%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe'),
+            os.path.expandvars(r'%LocalAppData%\Google\Chrome\Application\chrome.exe'),
+            r'C:\Program Files\Google\Chrome\Application\chrome.exe',
+            r'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe',
+        ]
+    elif sys.platform == 'darwin':
+        # macOS paths
+        common_paths = [
+            '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+            os.path.expanduser('~/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'),
+        ]
+    else:
+        # Linux paths
+        common_paths = [
+            '/usr/bin/google-chrome',
+            '/usr/bin/google-chrome-stable',
+            '/usr/bin/chromium',
+            '/usr/bin/chromium-browser',
+            '/snap/bin/chromium',
+        ]
+    
+    for path in common_paths:
+        if os.path.exists(path):
+            return path
+    
+    return None
+
 # --- Routes ---
 
 @app.route('/')
@@ -71,9 +116,9 @@ def start_bot():
     errors = []
     
     # Check for Chrome
-    chrome_path = shutil.which('google-chrome') or shutil.which('chromium-browser') or shutil.which('chromium')
+    chrome_path = find_chrome()
     if not chrome_path:
-        errors.append("Chrome browser is not installed or not found in PATH")
+        errors.append("Chrome browser is not installed. Please install Google Chrome from https://www.google.com/chrome/")
     
     # Check for required Python packages
     missing_packages = []
@@ -96,7 +141,9 @@ def start_bot():
         errors.append(f"Missing Python packages: {', '.join(missing_packages)}. Run: pip install {' '.join(missing_packages)}")
     
     # Check for display (needed for non-headless mode)
-    if not os.environ.get('DISPLAY') and os.name != 'nt':  # Not Windows
+    # macOS and Windows always have display available when running locally
+    has_display = sys.platform in ('darwin', 'win32') or os.environ.get('DISPLAY')
+    if not has_display:
         config_data = get_config()
         run_in_background = config_data.get('settings', {}).get('run_in_background', False)
         if not run_in_background:
@@ -172,49 +219,6 @@ def bot_status():
         "interaction": interaction
     })
 
-def find_chrome():
-    """Find Chrome browser installation"""
-    import shutil
-    
-    # Check PATH first
-    chrome_path = shutil.which('google-chrome') or shutil.which('chromium-browser') or shutil.which('chromium') or shutil.which('chrome')
-    if chrome_path:
-        return chrome_path
-    
-    # Check common installation paths
-    common_paths = []
-    
-    if sys.platform == 'win32':
-        # Windows paths
-        common_paths = [
-            os.path.expandvars(r'%ProgramFiles%\Google\Chrome\Application\chrome.exe'),
-            os.path.expandvars(r'%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe'),
-            os.path.expandvars(r'%LocalAppData%\Google\Chrome\Application\chrome.exe'),
-            r'C:\Program Files\Google\Chrome\Application\chrome.exe',
-            r'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe',
-        ]
-    elif sys.platform == 'darwin':
-        # macOS paths
-        common_paths = [
-            '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-            os.path.expanduser('~/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'),
-        ]
-    else:
-        # Linux paths
-        common_paths = [
-            '/usr/bin/google-chrome',
-            '/usr/bin/google-chrome-stable',
-            '/usr/bin/chromium',
-            '/usr/bin/chromium-browser',
-            '/snap/bin/chromium',
-        ]
-    
-    for path in common_paths:
-        if os.path.exists(path):
-            return path
-    
-    return None
-
 @app.route('/api/environment/check', methods=['GET'])
 def check_environment():
     """Check if the environment can run the bot and return compatibility info"""
@@ -251,7 +255,13 @@ def check_environment():
         checks["errors"].append("Python package 'undetected-chromedriver' is not installed")
     
     # Check for display
-    if os.environ.get('DISPLAY') or os.name == 'nt':
+    # On macOS and Windows, display is always available if running locally
+    # On Linux, check DISPLAY environment variable
+    if sys.platform == 'darwin':  # macOS
+        checks["display_available"] = True
+    elif sys.platform == 'win32':  # Windows
+        checks["display_available"] = True
+    elif os.environ.get('DISPLAY'):  # Linux with X11
         checks["display_available"] = True
     else:
         checks["warnings"].append("No display detected. Enable 'Run in Background' mode in Settings for headless operation.")
